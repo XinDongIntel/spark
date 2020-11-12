@@ -148,6 +148,21 @@ private[spark] class UnifiedMemoryManager(
       numBytes, taskAttemptId, maybeGrowExecutionPool, () => computeMaxExecutionPoolSize)
   }
 
+  /**
+   * acquire extended memory from extend memory pool
+   * @param numBytes
+   * @param taskAttemptId
+   * @return
+   */
+  override def acquireExtendedMemory(numBytes: Long, taskAttemptId: Long): Long = synchronized {
+    if (numBytes > extendedMemoryPool.memoryFree) {
+      logInfo(s"No PMem Space left, allocation fails.")
+      return 0;
+    }
+    extendedMemoryPool.decrementPoolSize(numBytes)
+    return numBytes
+  }
+
   override def acquireStorageMemory(
       blockId: BlockId,
       numBytes: Long,

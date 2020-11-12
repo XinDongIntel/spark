@@ -222,15 +222,7 @@ public final class UnsafeInMemorySorter {
       throw new SparkOutOfMemoryError("Not enough memory to grow pointer array");
       // checkstyle.on: RegexpSinglelineJava
     }
-    Platform.copyMemory(
-      array.getBaseObject(),
-      array.getBaseOffset(),
-      newArray.getBaseObject(),
-      newArray.getBaseOffset(),
-      pos * 8L);
-    consumer.freeArray(array);
-    array = newArray;
-    usableCapacity = getUsableCapacity();
+    movePointerArray(newArray);
   }
 
   /**
@@ -339,6 +331,10 @@ public final class UnsafeInMemorySorter {
 
     @Override
     public long getKeyPrefix() { return keyPrefix; }
+
+    public int getPosition() { return position; }
+
+    public int getOffset() { return offset; }
   }
 
   /**
@@ -382,4 +378,13 @@ public final class UnsafeInMemorySorter {
       return new SortedIterator(pos / 2, offset);
     }
   }
+
+  public LongArray getLongArray() {
+    return array;
+  }
+
+  public TaskMemoryManager getTaskMemoryManager() {
+    return memoryManager;
+  }
+
 }

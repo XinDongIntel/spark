@@ -84,6 +84,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
 
   private final LinkedList<UnsafeSorterSpillWriter> spillWriters = new LinkedList<>();
 
+  private final LinkedList<SpillWriterForUnsafeSorter> pMemSpillWriters = new LinkedList<SpillWriterForUnsafeSorter>();
+
   // These variables are reset after spilling:
   @Nullable private volatile UnsafeInMemorySorter inMemSorter;
 
@@ -93,6 +95,9 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   private long totalSpillBytes = 0L;
   private long totalSortTimeNanos = 0L;
   private volatile SpillableIterator readingIterator = null;
+
+  private final boolean spillToPMemEnabled = SparkEnv.get() != null && (boolean) SparkEnv.get().conf().get(
+          package$.MODULE$.MEMORY_SPILL_PMEM_ENABLED());
 
   public static UnsafeExternalSorter createWithExistingInMemorySorter(
       TaskMemoryManager taskMemoryManager,
@@ -212,13 +217,13 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       spillWriters.size(),
       spillWriters.size() > 1 ? " times" : " time");
 
-    ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
+    UnsafeSorterIterator sortedIterator = inMemSorter.getSortedIterator();
 
-    final UnsafeSorterSpillWriter spillWriter =
-      new UnsafeSorterSpillWriter(blockManager, fileBufferSizeBytes, writeMetrics,
-        inMemSorter.numRecords());
-    spillWriters.add(spillWriter);
-    spillIterator(inMemSorter.getSortedIterator(), spillWriter);
+    if (spillToPMemEnabled && (sortedIterator instanceof UnsafeInMemorySorter.SortedIterator)) {
+      spillToPMem(sortedIterator);
+    } else {
+      spillToDisk(sortedIterator);
+    }
 
     final long spillSize = freeMemory();
     // Note that this is more-or-less going to be a multiple of the page size, so wasted space in
@@ -233,6 +238,32 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     taskContext.taskMetrics().incDiskBytesSpilled(writeMetrics.bytesWritten());
     totalSpillBytes += spillSize;
     return spillSize;
+  }
+
+  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator) throws IOException {
+    ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
+    UnsafeInMemorySorter.SortedIterator sortedIte = (UnsafeInMemorySorter.SortedIterator)sortedIterator;
+    SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIte,inMemSorter);
+    UnsafeSorterPMemSpillWriter spillWriter = PMemSpillWriterFactory.getSpillWriter(
+            PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM,
+            this,
+            sortedSpillIte,
+            writeMetrics);
+    pMemSpillWriters.add(spillWriter);
+    spillWriter.write();
+    return spillWriter;
+  }
+
+  public UnsafeSorterSpillWriter spillToDisk(UnsafeSorterIterator sortedIterator) throws IOException {
+    ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
+    final UnsafeSorterSpillWriter spillWriter = new UnsafeSorterSpillWriter(
+            blockManager,
+            fileBufferSizeBytes,
+            writeMetrics,
+            inMemSorter.numRecords());
+    spillWriters.add(spillWriter);
+    spillIterator(sortedIterator, spillWriter);
+    return spillWriter;
   }
 
   /**
@@ -317,12 +348,19 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     }
   }
 
+  private void freePMemSpills() {
+    for (SpillWriterForUnsafeSorter spillWriter : pMemSpillWriters) {
+      spillWriter.clearAll();
+    }
+  }
+
   /**
    * Frees this sorter's in-memory data structures and cleans up its spill files.
    */
   public void cleanupResources() {
     synchronized (this) {
       deleteSpillFiles();
+      freePMemSpills();
       freeMemory();
       if (inMemSorter != null) {
         inMemSorter.free();
@@ -462,7 +500,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
    */
   public UnsafeSorterIterator getSortedIterator() throws IOException {
     assert(recordComparatorSupplier != null);
-    if (spillWriters.isEmpty()) {
+    if (spillWriters.isEmpty() && pMemSpillWriters.isEmpty()) {
       assert(inMemSorter != null);
       readingIterator = new SpillableIterator(inMemSorter.getSortedIterator());
       return readingIterator;
@@ -471,6 +509,9 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         recordComparatorSupplier.get(), prefixComparator, spillWriters.size());
       for (UnsafeSorterSpillWriter spillWriter : spillWriters) {
         spillMerger.addSpillIfNotEmpty(spillWriter.getReader(serializerManager));
+      }
+      for (SpillWriterForUnsafeSorter spillPMemWriter: pMemSpillWriters) {
+        spillMerger.addSpillIfNotEmpty(spillPMemWriter.getSpillReader());
       }
       if (inMemSorter != null) {
         readingIterator = new SpillableIterator(inMemSorter.getSortedIterator());
@@ -522,17 +563,15 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
           && numRecords > 0)) {
           return 0L;
         }
-
-        UnsafeInMemorySorter.SortedIterator inMemIterator =
-          ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
-
-       ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
-        // Iterate over the records that have not been returned and spill them.
-        final UnsafeSorterSpillWriter spillWriter =
-          new UnsafeSorterSpillWriter(blockManager, fileBufferSizeBytes, writeMetrics, numRecords);
-        spillIterator(inMemIterator, spillWriter);
-        spillWriters.add(spillWriter);
-        nextUpstream = spillWriter.getReader(serializerManager);
+        if (!spillToPMemEnabled) {
+          UnsafeInMemorySorter.SortedIterator inMemIterator =
+                  ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
+          UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator);
+          nextUpstream = spillWriter.getReader(serializerManager);
+        } else {
+          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator) upstream);
+          nextUpstream = spillWriter.getSpillReader();
+        }
 
         long released = 0L;
         synchronized (UnsafeExternalSorter.this) {

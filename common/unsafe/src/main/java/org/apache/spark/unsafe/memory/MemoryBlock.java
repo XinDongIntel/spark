@@ -54,6 +54,8 @@ public class MemoryBlock extends MemoryLocation {
    */
   public int pageNumber = NO_PAGE_NUMBER;
 
+  public boolean isExtendedMemory = false;
+
   public MemoryBlock(@Nullable Object obj, long offset, long length) {
     super(obj, offset);
     this.length = length;
@@ -78,5 +80,21 @@ public class MemoryBlock extends MemoryLocation {
    */
   public void fill(byte value) {
     Platform.setMemory(obj, offset, length, value);
+  }
+
+  /**
+   * Whether this memory block is on extended memory.
+   * @return
+   */
+  public boolean isExtendedMemory() {
+    return isExtendedMemory;
+  }
+
+  /**
+   * set whether this memory block is on extended memory.
+   * @param isExtended
+   */
+  public void isExtendedMemory(boolean isExtended) {
+    this.isExtendedMemory = isExtended;
   }
 }

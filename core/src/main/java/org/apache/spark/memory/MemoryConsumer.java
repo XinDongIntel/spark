@@ -100,6 +100,10 @@ public abstract class MemoryConsumer {
     return new LongArray(page);
   }
 
+  public LongArray allocateArrayOnPmem(long size) {
+
+  }
+
   /**
    * Frees a LongArray.
    */
@@ -157,5 +161,9 @@ public abstract class MemoryConsumer {
     throw new SparkOutOfMemoryError("Unable to acquire " + required + " bytes of memory, got " +
       got);
     // checkstyle.on: RegexpSinglelineJava
+  }
+
+  public TaskMemoryManager getTaskMemoryManager() {
+    return taskMemoryManager;
   }
 }

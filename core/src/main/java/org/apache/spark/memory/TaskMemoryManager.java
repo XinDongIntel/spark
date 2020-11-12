@@ -231,11 +231,38 @@ public class TaskMemoryManager {
   }
 
   /**
+   * acquire extended memory
+   * @param required
+   * @return
+   */
+  public long acquireExtendedMemory(long required, MemoryConsumer consumer) {
+    assert(required >= 0);
+    logger.info("Task {} acquire {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(required));
+    synchronized (this) {
+      long got = memoryManager.acquireExtendedMemory(required, taskAttemptId);
+      // The MemoryConsumer which acquired extended memory should be traced in TaskMemoryManagr.
+      // Not very sure about whether it should be added to the consumers here. Maybe should maintain
+      // another list for consumers which use extended memory.
+      consumers.add(consumer);
+      return got;
+    }
+  }
+
+  /**
    * Release N bytes of execution memory for a MemoryConsumer.
    */
   public void releaseExecutionMemory(long size, MemoryConsumer consumer) {
     logger.debug("Task {} release {} from {}", taskAttemptId, Utils.bytesToString(size), consumer);
     memoryManager.releaseExecutionMemory(size, taskAttemptId, consumer.getMode());
+  }
+
+  /**
+   * Rlease extended memory
+   * @param size
+   */
+  public void releaseExtendedMemory(long size) {
+    logger.debug("Task {} release {} PMem space.", taskAttemptId, Utils.bytesToString(size));
+    memoryManager.releaseExtendedMemory(size, taskAttemptId);
   }
 
   /**
@@ -280,22 +307,35 @@ public class TaskMemoryManager {
    * @throws TooLargePageException
    */
   public MemoryBlock allocatePage(long size, MemoryConsumer consumer) {
+    return allocatePage(size, consumer, false);
+  }
+
+  public MemoryBlock allocatePage(long size, MemoryConsumer consumer, boolean useExtendedMem) {
     assert(consumer != null);
     assert(consumer.getMode() == tungstenMemoryMode);
     if (size > MAXIMUM_PAGE_SIZE_BYTES) {
       throw new TooLargePageException(size);
     }
 
-    long acquired = acquireExecutionMemory(size, consumer);
+    long acquired = 0L;
+    if (useExtendedMem) {
+      acquired = acquireExtendedMemory(size, consumer);
+    } else {
+      acquired = acquireExecutionMemory(size, consumer);
+    }
     if (acquired <= 0) {
-      return null;
+        return null;
     }
 
     final int pageNumber;
     synchronized (this) {
       pageNumber = allocatedPages.nextClearBit(0);
       if (pageNumber >= PAGE_TABLE_SIZE) {
-        releaseExecutionMemory(acquired, consumer);
+        if (useExtendedMem) {
+          releaseExtendedMemory(acquired, consumer);
+        } else {
+          releaseExecutionMemory(acquired, consumer);
+        }
         throw new IllegalStateException(
           "Have already allocated a maximum of " + PAGE_TABLE_SIZE + " pages");
       }
@@ -303,7 +343,12 @@ public class TaskMemoryManager {
     }
     MemoryBlock page = null;
     try {
-      page = memoryManager.tungstenMemoryAllocator().allocate(acquired);
+      if (useExtendedMem) {
+        page = memoryManager.extendedMemoryAllocator().allocate(size);
+        page.isExtendedMemory(true);
+      } else {
+        page = memoryManager.tungstenMemoryAllocator().allocate(acquired);
+      }
     } catch (OutOfMemoryError e) {
       logger.warn("Failed to allocate a page ({} bytes), try again.", acquired);
       // there is no enough memory actually, it means the actual free memory is smaller than
@@ -312,9 +357,15 @@ public class TaskMemoryManager {
         acquiredButNotUsed += acquired;
         allocatedPages.clear(pageNumber);
       }
-      // this could trigger spilling to free some pages.
-      return allocatePage(size, consumer);
+      if (useExtendedMem) {
+        // will not force spill when use extended mem
+        return null;
+      } else {
+        // this could trigger spilling to free some pages.
+        return allocatePage(size, consumer);
+      }
     }
+
     page.pageNumber = pageNumber;
     pageTable[pageNumber] = page;
     if (logger.isTraceEnabled()) {
@@ -346,8 +397,13 @@ public class TaskMemoryManager {
     // Doing this allows the MemoryAllocator to detect when a TaskMemoryManager-managed
     // page has been inappropriately directly freed without calling TMM.freePage().
     page.pageNumber = MemoryBlock.FREED_IN_TMM_PAGE_NUMBER;
-    memoryManager.tungstenMemoryAllocator().free(page);
-    releaseExecutionMemory(pageSize, consumer);
+    if (page.isExtendedMemory) {
+      memoryManager.extendedMemoryAllocator().free(page);
+      releaseExtendedMemory(pageSize);
+    } else {
+      memoryManager.tungstenMemoryAllocator().free(page);
+      releaseExecutionMemory(pageSize, consumer);
+    }
   }
 
   /**
