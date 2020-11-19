@@ -17,15 +17,20 @@
 
 package org.apache.spark.util.collection.unsafe.sort;
 
+import org.apache.batik.util.Platform;
 import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.unsafe.Platform;
+import org.apache.spark.unsafe.UnsafeAlignedOffset;
+import org.apache.spark.unsafe.memory.MemoryBlock;
 import java.io.IOException;
 
 
 public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
-    private MemoryBlock currentPmemPage = null;
+    private MemoryBlock currentPMemPage = null;
     private long currentOffsetInPage = 0L;
     private int currentNumOfRecordsInPage = 0;
+    private int currentRecLen = 0;
+    private long currentPrefix = 0L;
     //Page -> record number map
     private HashMap<MemoryBlock,Integer> pageNumOfRecMap = new HashMap<MemoryBlock,Integer>();
     private int numRecords = 0;
@@ -44,26 +49,46 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             sortedIterator.loadNext();
             final Object baseObject = sortedIterator.getBaseObject();
             final long baseOffset = sortedIterator.getBaseOffset();
-            final int recordLength = sortedIterator.getRecordLength();
+            currentRecLen = sortedIterator.getRecordLength();
+            currentPrefix = sortedIterator.getKeyPrefix();
             if (allocatedPMemPages.isEmpty()) {
-                currentPmemPage = allocatePMemPage();
-                currentOffsetInPage = 0;
-                currentNumOfRecordsInPage = 0;
+                MemoryBlock page = allocatePMemPage();
             }
-            long pageBaseOffset = currentPmemPage.getBaseOffset();
+            long pageBaseOffset = currentPMemPage.getBaseOffset();
             long currentOffset = pageBaseOffset + currentOffsetInPage;
-            if (currentOffset > pageBaseOffset + currentPmemPage.size()) {
-                currentPmemPage = allocatePMemPage();
-                currentOffsetInPage = 0;
-                currentNumOfRecordsInPage = 0;
+            if (currentOffset > pageBaseOffset + currentPMemPage.size()) {
+                allocatePMemPage();
             }
-            Platform.copyMemory(baseObject,baseOffset,null,currentOffset,recordLength);
+            Platform.putInt(
+                    null,
+                    currentOffset,
+                    currentRecLen);
+            int uaoSize = UnsafeAlignedOffset.getUaoSize();
+            currentOffset += uaoSize;
+            Platform.putLong(
+                    null,
+                    currentOffset,
+                    currentPrefix);
+            currentOffset += Long.BYTES;
+            Platform.copyMemory(
+                    baseObject,
+                    baseOffset,
+                    null,
+                    currentOffset,
+                    currentRecLen);
             currentNumOfRecordsInPage ++;
-            pageNumOfRecMap.put(currentPmemPage, currentNumOfRecordsInPage);
+            pageNumOfRecMap.put(currentPMemPage, currentNumOfRecordsInPage);
             numRecords ++;
         }
     }
 
+    @override
+    private MemoryBlock allocatePMemPage(){
+        currentPMemPage = super.allocatePMemPage();
+        currentOffsetInPage = 0;
+        currentNumOfRecordsInPage = 0;
+        return currentPMemPage;
+    }
 
     @Override
     public UnsafeSorterIterator getSpillReader() {
@@ -76,17 +101,15 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     }
 
     private class SortedPMemPageSpillReader extends UnsafeSorterIterator {
-        private MemoryBlock currentPage = null;
-        private int currentPageIdx = -1;
-        private int currentOffsetInPage = 0;
-        private int currentNumOfRecInPage = 0;
-        private long currentRecordAddress = 0;
+        private MemoryBlock curPage = null;
+        private int curPageIdx = -1;
+        private int curOffsetInPage = 0;
+        private int curNumOfRecInPage = 0;
+        private long curRecordAddress = 0;
         private int recordLength;
         private long keyPrefix;
-        private Object baseObject = null;
 
         public SortedPMemPageSpillReader() {
-
         }
         @Override
         public boolean hasNext() {
@@ -95,31 +118,32 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
 
         @Override
         public void loadNext() throws IOException {
-            if (currentPage == null || currentNumOfRecInPage >= pageNumOfRecMap.get(currentPage)) {
+            if (curPage == null || curNumOfRecInPage >= pageNumOfRecMap.get(curPage)) {
                 moveToNextPMemPage();
             }
-            long recordAddress = currentPage.getBaseOffset + currentOffsetInPage;
-            int uaoSize = UnsafeAlignedOffset.getUaoSize();
-            recordLength = UnsafeAlignedOffset.getSize(null, recordAddress);
-            currentOffsetInPage += recordLength;
-            currentRecordAddress = uaoSize + recordAddress;
+            long curPageBaseOffset = curPage.getBaseOffset();
+            recordLength = UnsafeAlignedOffset.getSize(null, curPageBaseOffset + curOffsetInPage);
+            curOffsetInPage += UnsafeAlignedOffset.getUaoSize();
+            keyPrefix = Platform.getLong(null, curPageBaseOffset + curOffsetInPage);
+            curOffsetInPage += Long.BYTES;
+            curRecordAddress = curPageBaseOffset + curOffsetInPage;
         }
 
         private void moveToNextPMemPage() {
-            currentPageIdx ++;
-            currentPage = allocatedPMemPages.get(currentPageIdx);
-            currentOffsetInPage = 0;
-            currentNumOfRecInPage = 0;
+            curPageIdx++;
+            curPage = allocatedPMemPages.get(curPageIdx);
+            curOffsetInPage = 0;
+            curNumOfRecInPage = 0;
         }
 
         @Override
         public Object getBaseObject() {
-            return baseObject;
+            return null;
         }
 
         @Override
         public long getBaseOffset() {
-            return currentRecordAddress;
+            return curRecordAddress;
         }
 
         @Override

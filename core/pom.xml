@@ -36,6 +36,11 @@
   
   <dependencies>
     <dependency>
+      <groupId>com.intel.oap</groupId>
+      <artifactId>oap-common</artifactId>
+      <version>0.9.0</version>
+    </dependency>
+    <dependency>
       <groupId>com.thoughtworks.paranamer</groupId>
       <artifactId>paranamer</artifactId>
     </dependency>
@@ -451,6 +456,12 @@
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-crypto</artifactId>
     </dependency>
+      <dependency>
+          <groupId>org.apache.spark</groupId>
+          <artifactId>spark-unsafe_2.12</artifactId>
+          <version>3.0.0</version>
+          <scope>compile</scope>
+      </dependency>
       <dependency>
           <groupId>org.apache.spark</groupId>
           <artifactId>spark-unsafe_2.12</artifactId>

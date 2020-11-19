@@ -21,7 +21,8 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
 
     protected LinkedList<MemoryBlock> allocatedPMemPages = new LinkedList<MemoryBloc>();
 
-    private static long DEFAULT_PAGE_SIZE = 4*1024;
+    //Page size in bytes.
+    private static long DEFAULT_PAGE_SIZE = 64*1024*1024;
 
     public UnsafeSorterPMemSpillWriter(
         MemoryConsumer memConsumer,
