@@ -456,19 +456,12 @@
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-crypto</artifactId>
     </dependency>
-      <dependency>
-          <groupId>org.apache.spark</groupId>
-          <artifactId>spark-unsafe_2.12</artifactId>
-          <version>3.0.0</version>
-          <scope>compile</scope>
-      </dependency>
-      <dependency>
-          <groupId>org.apache.spark</groupId>
-          <artifactId>spark-unsafe_2.12</artifactId>
-          <version>3.0.0</version>
-          <scope>compile</scope>
-      </dependency>
-
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-unsafe_2.12</artifactId>
+      <version>3.0.0</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
   <build>
     <outputDirectory>target/scala-${scala.binary.version}/classes</outputDirectory>
