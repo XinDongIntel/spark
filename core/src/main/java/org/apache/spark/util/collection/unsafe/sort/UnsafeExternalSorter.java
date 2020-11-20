@@ -88,10 +88,9 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   private final LinkedList<MemoryBlock> allocatedPages = new LinkedList<>();
 
   private final LinkedList<UnsafeSorterSpillWriter> spillWriters = new LinkedList<>();
-  private final LinkedList<PMemWriter> pMemSpillWriters = new LinkedList<>();
 
   //FIXME
-  bool isYan = true;
+  boolean isYan = true;
   private final LinkedList<SpillWriterForUnsafeSorter> pMemSpillWriters = new LinkedList<SpillWriterForUnsafeSorter>();
 
   // These variables are reset after spilling:
@@ -103,9 +102,6 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   private long totalSpillBytes = 0L;
   private long totalSortTimeNanos = 0L;
   private volatile SpillableIterator readingIterator = null;
-
-  private final boolean spillToPMemEnabled = SparkEnv.get() != null && (boolean) SparkEnv.get().conf().get(
-          package$.MODULE$.MEMORY_SPILL_PMEM_ENABLED());
 
   public static UnsafeExternalSorter createWithExistingInMemorySorter(
       TaskMemoryManager taskMemoryManager,
@@ -220,64 +216,28 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     }
 
     logger.info("Thread {} spilling sort data of {} to disk ({} {} so far)",
-      Thread.currentThread().getId(),
-      Utils.bytesToString(getMemoryUsage()),
-      spillWriters.size() + pMemSpillWriters.size(),
-      (spillWriters.size() + pMemSpillWriters.size()) > 1 ? " times" : " time");
+        Thread.currentThread().getId(),
+        Utils.bytesToString(getMemoryUsage()),
+        spillWriters.size() + pMemSpillWriters.size(),
+        (spillWriters.size() + pMemSpillWriters.size()) > 1 ? " times" : " time");
     long spillSize = 0;
     ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
-if(！isYan){
     UnsafeSorterIterator sortedIterator = inMemSorter.getSortedIterator();
-
-    if (spillToPMemEnabled && (sortedIterator instanceof UnsafeInMemorySorter.SortedIterator)) {
-      spillToPMem(sortedIterator, writeMetrics);
+    // assure there is enough PMem space for this spill first
+    long startTime = System.nanoTime();
+    long duration;
+    // firstly try to spill to PMem if spark.memory.spill.pmem.enabled set to true
+    long required = getMemoryUsage();
+    //FIXME handle this at SpillWriter
+    if (spillToPMemEnabled && (sortedIterator instanceof UnsafeInMemorySorter.SortedIterator
+        && taskMemoryManager.acquireExtendedMemory(required) == required)) {
+      spillToPMem(sortedIterator, writeMetrics, false);
     } else {
       spillToDisk(sortedIterator, writeMetrics);
     }
-
-    final long spillSize = freeMemory();
-}else{
-    // firstly try to spill to PMem if spark.memory.spill.pmem.enabled set to true
-    long required = getMemoryUsage();
-    // assure there is enough PMem space for this spill first
-    long startTime = System.nanoTime();
-    long duration = 0;
-    if (spillToPMemEnabled && taskMemoryManager.acquireExtendedMemory(required) == required) {
-      // records are not sorted before spill to PMem, may affected performance?
-      final PMemWriter pMemSpillWriter = new PMemWriter(writeMetrics, taskContext.taskMetrics(),
-              taskMemoryManager, inMemSorter.numRecords());
-      long dumpTime = System.nanoTime();
-      for (MemoryBlock page : allocatedPages) {
-        if (pMemSpillWriter.dumpPageToPMem(page)) {
-          spillSize += page.size();
-        } else {
-          logger.error("UnsafeExternalSorter fails to spill fully to PMem.");
-        }
-      }
-      long dumpDuration = System.nanoTime() - dumpTime;
-      System.out.println("dump time : " + dumpDuration/1000000);
-      long sortTime = System.nanoTime();
-      pMemSpillWriter.updateLongArray(inMemSorter.getSortedArray(), inMemSorter.numRecords(), 0);
-      long sortDuration = System.nanoTime() - sortTime;
-      System.out.println("sort time : " + sortDuration/1000000);
-      // verify all records in inMemSoter are spilled in PMem
-      assert(pMemSpillWriter.getNumRecordsWritten() == inMemSorter.numRecords());
-      pMemSpillWriters.add(pMemSpillWriter);
-      duration = System.nanoTime() - startTime;
-      spillSize += freeMemory();
-      inMemSorter.resetWithoutLongArrray();
-    } else {
-    // fallback to disk spill if PMem spill is not enabled or space not enough
-      final UnsafeSorterSpillWriter spillWriter =
-              new UnsafeSorterSpillWriter(blockManager, fileBufferSizeBytes, writeMetrics,
-                      inMemSorter.numRecords());
-      spillWriters.add(spillWriter);
-      spillIterator(inMemSorter.getSortedIterator(), spillWriter);
-      duration = System.nanoTime() - startTime;
-      spillSize += freeMemory();
-      inMemSorter.reset();
-    }
-}
+    duration = System.nanoTime() - startTime;
+    spillSize += freeMemory();
+    inMemSorter.reset();
     // Note that this is more-or-less going to be a multiple of the page size, so wasted space in
     // pages will currently be counted as memory spilled even though that space isn't actually
     // written to disk. This also counts the space needed to store the sorter's pointer array.
@@ -291,14 +251,16 @@ if(！isYan){
     return spillSize;
   }
 
-  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
-    UnsafeInMemorySorter.SortedIterator sortedIte = (UnsafeInMemorySorter.SortedIterator)sortedIterator;
-    SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIte,inMemSorter);
-    UnsafeSorterPMemSpillWriter spillWriter = PMemSpillWriterFactory.getSpillWriter(
-            PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM,
-            this,
-            sortedSpillIte,
-            writeMetrics);
+  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics, boolean isYan) throws IOException {
+    UnsafeInMemorySorter.SortedIterator sortedIte = (UnsafeInMemorySorter.SortedIterator) sortedIterator;
+    SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIte, inMemSorter);
+    //TODO unify using factory to get writer
+    final UnsafeSorterPMemSpillWriter spillWriter = isYan ? PMemSpillWriterFactory.getSpillWriter(
+        PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM,
+        this,
+        sortedSpillIte,
+        writeMetrics) : new PMemWriter(this, sortedSpillIte, writeMetrics, taskContext.taskMetrics(),
+        taskMemoryManager, inMemSorter.numRecords(), allocatedPages);
     pMemSpillWriters.add(spillWriter);
     spillWriter.write();
     return spillWriter;
@@ -397,23 +359,9 @@ if(！isYan){
     }
   }
 
-  //FIXME
-private void freePMemSpills() {
+  private void freePMemSpills() {
     for (SpillWriterForUnsafeSorter spillWriter : pMemSpillWriters) {
       spillWriter.clearAll();
-    }
-  pMemSpillWriters.clear();
-}
-
-    //FIXME conflict with freePMemSpills
-  private void deletePMemSpillPages() {
-    for (PMemWriter pMemWriter: pMemSpillWriters) {
-      if (pMemWriter.getSortedArray().memoryBlock().pageNumber != MemoryBlock.FREED_IN_ALLOCATOR_PAGE_NUMBER) {
-        freeArray(pMemWriter.getSortedArray());
-      }
-      for (MemoryBlock block : pMemWriter.getAllocatedPMemPages()) {
-        freePMemPage(block);
-      }
     }
     pMemSpillWriters.clear();
   }
@@ -424,12 +372,8 @@ private void freePMemSpills() {
   public void cleanupResources() {
     synchronized (this) {
       long startTime = System.nanoTime();
-      deleteSpillFiles(); 
-      if(isYan){
+      deleteSpillFiles();
       freePMemSpills();
-      }else{
-      deletePMemSpillPages();
-      }
       long duration = System.nanoTime() - startTime;
       taskContext.taskMetrics().incShuffleSpillDeleteTime(duration);
       freeMemory();
