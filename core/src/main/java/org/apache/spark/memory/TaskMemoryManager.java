@@ -260,7 +260,7 @@ public class TaskMemoryManager {
    * Rlease extended memory
    * @param size
    */
-  public void releaseExtendedMemory(long size) {
+  public void releaseExtendedMemory(long size, MemoryConsumer consumer) {
     logger.debug("Task {} release {} PMem space.", taskAttemptId, Utils.bytesToString(size));
     memoryManager.releaseExtendedMemory(size, taskAttemptId);
   }

@@ -18,6 +18,7 @@
 package org.apache.spark.util.collection.unsafe.sort;
 
 import org.apache.spark.memory.MemoryConsumer;
+import org.apache.spark.executor.ShuffleWriteMetrics;
 
 public class PMemSpillWriterFactory {
     public static UnsafeSorterPMemSpillWriter getSpillWriter(

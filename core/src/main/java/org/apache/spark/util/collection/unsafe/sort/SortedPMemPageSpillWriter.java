@@ -17,12 +17,13 @@
 
 package org.apache.spark.util.collection.unsafe.sort;
 
-import org.apache.batik.util.Platform;
+import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.UnsafeAlignedOffset;
 import org.apache.spark.unsafe.memory.MemoryBlock;
 import java.io.IOException;
+import java.util.LinkedHashMap;
 
 
 public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
@@ -32,7 +33,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     private int currentRecLen = 0;
     private long currentPrefix = 0L;
     //Page -> record number map
-    private HashMap<MemoryBlock,Integer> pageNumOfRecMap = new HashMap<MemoryBlock,Integer>();
+    private LinkedHashMap<MemoryBlock,Integer> pageNumOfRecMap = new LinkedHashMap<MemoryBlock,Integer>();
     private int numRecords = 0;
 
     public SortedPMemPageSpillWriter(
@@ -82,8 +83,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         }
     }
 
-    @override
-    private MemoryBlock allocatePMemPage(){
+    protected MemoryBlock allocatePMemPage(){
         currentPMemPage = super.allocatePMemPage();
         currentOffsetInPage = 0;
         currentNumOfRecordsInPage = 0;
