@@ -73,7 +73,7 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
 
     @Override
     public UnsafeSorterIterator getSpillReader() {
-        throw new RuntimeException("Unsupported operation");
+        return new PMemReaderForUnsafeExternalSorter(sortedArray, position, numRecordsWritten, taskMetrics);
     }
 
     public void clearAll() {
@@ -89,7 +89,7 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
         taskMemoryManager.freePMemPage(page, memConsumer);
     }
 
-    public void updateLongArray(LongArray sortedArray, int numRecords, int position) {
+    private void updateLongArray(LongArray sortedArray, int numRecords, int position) {
         this.position = position;
         while (position < numRecords * 2){
             // update recordPointer in this array

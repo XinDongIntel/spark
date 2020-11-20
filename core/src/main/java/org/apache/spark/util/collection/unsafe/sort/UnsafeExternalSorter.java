@@ -529,11 +529,6 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
                   taskContext.taskMetrics()));
         }
       }
-      if (!pMemSpillWriters.isEmpty()) {
-        for (PMemWriter pMemWriter: pMemSpillWriters) {
-          spillMerger.addSpillIfNotEmpty(pMemWriter.getPMemReaderForUnsafeExternalSorter());
-        }
-      }
       for (SpillWriterForUnsafeSorter spillPMemWriter: pMemSpillWriters) {
         spillMerger.addSpillIfNotEmpty(spillPMemWriter.getSpillReader());
       }
@@ -589,53 +584,24 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         }
         
         ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
-        if (!spillToPMemEnabled) {
-          UnsafeInMemorySorter.SortedIterator inMemIterator =
-                  ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
-          UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator, writeMetrics);
-          nextUpstream = spillWriter.getReader(serializerManager);
-        } else {
-          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator) upstream, writeMetrics);
-          nextUpstream = spillWriter.getSpillReader();
-        }
-
         long required = getMemoryUsage();
         long startTime = System.nanoTime();
         long released = 0L;
-        // assure there is enough PMem space for this spill first
         if (spillToPMemEnabled && taskMemoryManager.acquireExtendedMemory(required) == required) {
-          final PMemWriter pMemSpillWriter = new PMemWriter(writeMetrics,
-                  taskContext.taskMetrics(), taskMemoryManager, inMemIterator.getNumRecords());
-          System.out.println("inMemIterator/position:" + inMemIterator.getNumRecords()
-                  + " " + inMemIterator.getPosition());
-          for (MemoryBlock page : allocatedPages) {
-            if (!pMemSpillWriter.dumpPageToPMem(page)) {
-              logger.error("UnsafeExternalSorter fails to spill fully to PMem.");
-            }
-          }
-          pMemSpillWriter.updateLongArray(inMemSorter.getArray(), inMemIterator.getNumRecords(), inMemIterator.getPosition());
-          assert(pMemSpillWriter.getNumRecordsWritten() == inMemIterator.getNumRecords());
-          // pages will be freed later
-          pMemSpillWriters.add(pMemSpillWriter);
-          nextUpstream = pMemSpillWriter.getPMemReaderForUnsafeExternalSorter();
-          // in-memory sorter will not be used after spilling
-          assert(inMemSorter != null);
-          released += inMemSorter.getMemoryUsage();
-          totalSortTimeNanos += inMemSorter.getSortTimeNanos();
-          inMemSorter.freeWithoutLongArray();
+          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator) upstream, writeMetrics);
+          nextUpstream = spillWriter.getSpillReader();
         } else {
-          // Iterate over the records that have not been returned and spill them.
-          final UnsafeSorterSpillWriter spillWriter =
-                  new UnsafeSorterSpillWriter(blockManager, fileBufferSizeBytes, writeMetrics, numRecords);
-          spillIterator(inMemIterator, spillWriter);
-          spillWriters.add(spillWriter);
-          nextUpstream = spillWriter.getReader(serializerManager, taskContext.taskMetrics());
-          // in-memory sorter will not be used after spilling
-          assert(inMemSorter != null);
-          released += inMemSorter.getMemoryUsage();
-          totalSortTimeNanos += inMemSorter.getSortTimeNanos();
-          inMemSorter.free();
+          UnsafeInMemorySorter.SortedIterator inMemIterator =
+              ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
+          UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator, writeMetrics);
+          nextUpstream = spillWriter.getReader(serializerManager);
         }
+
+        released += inMemSorter.getMemoryUsage();
+        totalSortTimeNanos += inMemSorter.getSortTimeNanos();
+        //FIXME need to check whether to free long array
+        inMemSorter.free();
+
         long duration = System.nanoTime() - startTime;
         synchronized (UnsafeExternalSorter.this) {
           // release the pages except the one that is used. There can still be a caller that
