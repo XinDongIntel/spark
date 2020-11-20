@@ -159,7 +159,8 @@ private[spark] class UnifiedMemoryManager(
       logInfo(s"No PMem Space left, allocation fails.")
       return 0;
     }
-    extendedMemoryPool.decrementPoolSize(numBytes)
+
+    extendedMemoryPool.acquireMemory(numBytes, taskAttemptId);
     return numBytes
   }
 

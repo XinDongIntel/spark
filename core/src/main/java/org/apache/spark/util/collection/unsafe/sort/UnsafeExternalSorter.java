@@ -25,6 +25,8 @@ import java.util.Queue;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.spark.SparkEnv;
+import org.apache.spark.internal.config.package$;
 import org.apache.spark.memory.SparkOutOfMemoryError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,7 +77,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
    * Force this sorter to spill when there are this many elements in memory.
    */
   private final int numElementsForSpillThreshold;
-
+  private final boolean spillToPMemEnabled = SparkEnv.get() != null && (boolean) SparkEnv.get().conf().get(
+         package$.MODULE$.MEMORY_SPILL_PMEM_ENABLED());
   /**
    * Memory pages that hold the records being sorted. The pages in this list are freed when
    * spilling, although in principle we could recycle these pages across spills (on the other hand,
@@ -85,7 +88,10 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   private final LinkedList<MemoryBlock> allocatedPages = new LinkedList<>();
 
   private final LinkedList<UnsafeSorterSpillWriter> spillWriters = new LinkedList<>();
+  private final LinkedList<PMemWriter> pMemSpillWriters = new LinkedList<>();
 
+  //FIXME
+  bool isYan = true;
   private final LinkedList<SpillWriterForUnsafeSorter> pMemSpillWriters = new LinkedList<SpillWriterForUnsafeSorter>();
 
   // These variables are reset after spilling:
@@ -216,10 +222,11 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     logger.info("Thread {} spilling sort data of {} to disk ({} {} so far)",
       Thread.currentThread().getId(),
       Utils.bytesToString(getMemoryUsage()),
-      spillWriters.size(),
-      spillWriters.size() > 1 ? " times" : " time");
-
+      spillWriters.size() + pMemSpillWriters.size(),
+      (spillWriters.size() + pMemSpillWriters.size()) > 1 ? " times" : " time");
+    long spillSize = 0;
     ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
+if(！isYan){
     UnsafeSorterIterator sortedIterator = inMemSorter.getSortedIterator();
 
     if (spillToPMemEnabled && (sortedIterator instanceof UnsafeInMemorySorter.SortedIterator)) {
@@ -229,16 +236,57 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     }
 
     final long spillSize = freeMemory();
+}else{
+    // firstly try to spill to PMem if spark.memory.spill.pmem.enabled set to true
+    long required = getMemoryUsage();
+    // assure there is enough PMem space for this spill first
+    long startTime = System.nanoTime();
+    long duration = 0;
+    if (spillToPMemEnabled && taskMemoryManager.acquireExtendedMemory(required) == required) {
+      // records are not sorted before spill to PMem, may affected performance?
+      final PMemWriter pMemSpillWriter = new PMemWriter(writeMetrics, taskContext.taskMetrics(),
+              taskMemoryManager, inMemSorter.numRecords());
+      long dumpTime = System.nanoTime();
+      for (MemoryBlock page : allocatedPages) {
+        if (pMemSpillWriter.dumpPageToPMem(page)) {
+          spillSize += page.size();
+        } else {
+          logger.error("UnsafeExternalSorter fails to spill fully to PMem.");
+        }
+      }
+      long dumpDuration = System.nanoTime() - dumpTime;
+      System.out.println("dump time : " + dumpDuration/1000000);
+      long sortTime = System.nanoTime();
+      pMemSpillWriter.updateLongArray(inMemSorter.getSortedArray(), inMemSorter.numRecords(), 0);
+      long sortDuration = System.nanoTime() - sortTime;
+      System.out.println("sort time : " + sortDuration/1000000);
+      // verify all records in inMemSoter are spilled in PMem
+      assert(pMemSpillWriter.getNumRecordsWritten() == inMemSorter.numRecords());
+      pMemSpillWriters.add(pMemSpillWriter);
+      duration = System.nanoTime() - startTime;
+      spillSize += freeMemory();
+      inMemSorter.resetWithoutLongArrray();
+    } else {
+    // fallback to disk spill if PMem spill is not enabled or space not enough
+      final UnsafeSorterSpillWriter spillWriter =
+              new UnsafeSorterSpillWriter(blockManager, fileBufferSizeBytes, writeMetrics,
+                      inMemSorter.numRecords());
+      spillWriters.add(spillWriter);
+      spillIterator(inMemSorter.getSortedIterator(), spillWriter);
+      duration = System.nanoTime() - startTime;
+      spillSize += freeMemory();
+      inMemSorter.reset();
+    }
+}
     // Note that this is more-or-less going to be a multiple of the page size, so wasted space in
     // pages will currently be counted as memory spilled even though that space isn't actually
     // written to disk. This also counts the space needed to store the sorter's pointer array.
-    inMemSorter.reset();
     // Reset the in-memory sorter's pointer array only after freeing up the memory pages holding the
     // records. Otherwise, if the task is over allocated memory, then without freeing the memory
     // pages, we might not be able to get memory for the pointer array.
-
     taskContext.taskMetrics().incMemoryBytesSpilled(spillSize);
     taskContext.taskMetrics().incDiskBytesSpilled(writeMetrics.bytesWritten());
+    taskContext.taskMetrics().incShuffleSpillWriteTime(duration);
     totalSpillBytes += spillSize;
     return spillSize;
   }
@@ -349,10 +397,25 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     }
   }
 
-  private void freePMemSpills() {
+  //FIXME
+private void freePMemSpills() {
     for (SpillWriterForUnsafeSorter spillWriter : pMemSpillWriters) {
       spillWriter.clearAll();
     }
+  pMemSpillWriters.clear();
+}
+
+    //FIXME conflict with freePMemSpills
+  private void deletePMemSpillPages() {
+    for (PMemWriter pMemWriter: pMemSpillWriters) {
+      if (pMemWriter.getSortedArray().memoryBlock().pageNumber != MemoryBlock.FREED_IN_ALLOCATOR_PAGE_NUMBER) {
+        freeArray(pMemWriter.getSortedArray());
+      }
+      for (MemoryBlock block : pMemWriter.getAllocatedPMemPages()) {
+        freePMemPage(block);
+      }
+    }
+    pMemSpillWriters.clear();
   }
 
   /**
@@ -360,8 +423,15 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
    */
   public void cleanupResources() {
     synchronized (this) {
-      deleteSpillFiles();
+      long startTime = System.nanoTime();
+      deleteSpillFiles(); 
+      if(isYan){
       freePMemSpills();
+      }else{
+      deletePMemSpillPages();
+      }
+      long duration = System.nanoTime() - startTime;
+      taskContext.taskMetrics().incShuffleSpillDeleteTime(duration);
       freeMemory();
       if (inMemSorter != null) {
         inMemSorter.free();
@@ -479,7 +549,6 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     pageCursor += keyLen;
     Platform.copyMemory(valueBase, valueOffset, base, pageCursor, valueLen);
     pageCursor += valueLen;
-
     assert(inMemSorter != null);
     inMemSorter.insertRecord(recordAddress, prefix, prefixIsNull);
   }
@@ -490,8 +559,10 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   public void merge(UnsafeExternalSorter other) throws IOException {
     other.spill();
     spillWriters.addAll(other.spillWriters);
+    pMemSpillWriters.addAll(other.pMemSpillWriters);
     // remove them from `spillWriters`, or the files will be deleted in `cleanupResources`.
     other.spillWriters.clear();
+    other.pMemSpillWriters.clear();
     other.cleanupResources();
   }
 
@@ -507,9 +578,17 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       return readingIterator;
     } else {
       final UnsafeSorterSpillMerger spillMerger = new UnsafeSorterSpillMerger(
-        recordComparatorSupplier.get(), prefixComparator, spillWriters.size());
-      for (UnsafeSorterSpillWriter spillWriter : spillWriters) {
-        spillMerger.addSpillIfNotEmpty(spillWriter.getReader(serializerManager));
+        recordComparatorSupplier.get(), prefixComparator, spillWriters.size() + pMemSpillWriters.size());
+      if (!spillWriters.isEmpty()) {
+        for (UnsafeSorterSpillWriter spillWriter : spillWriters) {
+          spillMerger.addSpillIfNotEmpty(spillWriter.getReader(serializerManager,
+                  taskContext.taskMetrics()));
+        }
+      }
+      if (!pMemSpillWriters.isEmpty()) {
+        for (PMemWriter pMemWriter: pMemSpillWriters) {
+          spillMerger.addSpillIfNotEmpty(pMemWriter.getPMemReaderForUnsafeExternalSorter());
+        }
       }
       for (SpillWriterForUnsafeSorter spillPMemWriter: pMemSpillWriters) {
         spillMerger.addSpillIfNotEmpty(spillPMemWriter.getSpillReader());
@@ -564,6 +643,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
           && numRecords > 0)) {
           return 0L;
         }
+        
         ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
         if (!spillToPMemEnabled) {
           UnsafeInMemorySorter.SortedIterator inMemIterator =
@@ -575,7 +655,44 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
           nextUpstream = spillWriter.getSpillReader();
         }
 
+        long required = getMemoryUsage();
+        long startTime = System.nanoTime();
         long released = 0L;
+        // assure there is enough PMem space for this spill first
+        if (spillToPMemEnabled && taskMemoryManager.acquireExtendedMemory(required) == required) {
+          final PMemWriter pMemSpillWriter = new PMemWriter(writeMetrics,
+                  taskContext.taskMetrics(), taskMemoryManager, inMemIterator.getNumRecords());
+          System.out.println("inMemIterator/position:" + inMemIterator.getNumRecords()
+                  + " " + inMemIterator.getPosition());
+          for (MemoryBlock page : allocatedPages) {
+            if (!pMemSpillWriter.dumpPageToPMem(page)) {
+              logger.error("UnsafeExternalSorter fails to spill fully to PMem.");
+            }
+          }
+          pMemSpillWriter.updateLongArray(inMemSorter.getArray(), inMemIterator.getNumRecords(), inMemIterator.getPosition());
+          assert(pMemSpillWriter.getNumRecordsWritten() == inMemIterator.getNumRecords());
+          // pages will be freed later
+          pMemSpillWriters.add(pMemSpillWriter);
+          nextUpstream = pMemSpillWriter.getPMemReaderForUnsafeExternalSorter();
+          // in-memory sorter will not be used after spilling
+          assert(inMemSorter != null);
+          released += inMemSorter.getMemoryUsage();
+          totalSortTimeNanos += inMemSorter.getSortTimeNanos();
+          inMemSorter.freeWithoutLongArray();
+        } else {
+          // Iterate over the records that have not been returned and spill them.
+          final UnsafeSorterSpillWriter spillWriter =
+                  new UnsafeSorterSpillWriter(blockManager, fileBufferSizeBytes, writeMetrics, numRecords);
+          spillIterator(inMemIterator, spillWriter);
+          spillWriters.add(spillWriter);
+          nextUpstream = spillWriter.getReader(serializerManager, taskContext.taskMetrics());
+          // in-memory sorter will not be used after spilling
+          assert(inMemSorter != null);
+          released += inMemSorter.getMemoryUsage();
+          totalSortTimeNanos += inMemSorter.getSortTimeNanos();
+          inMemSorter.free();
+        }
+        long duration = System.nanoTime() - startTime;
         synchronized (UnsafeExternalSorter.this) {
           // release the pages except the one that is used. There can still be a caller that
           // is accessing the current record. We free this page in that caller's next loadNext()
@@ -591,15 +708,10 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
           }
           allocatedPages.clear();
         }
-
-        // in-memory sorter will not be used after spilling
-        assert(inMemSorter != null);
-        released += inMemSorter.getMemoryUsage();
-        totalSortTimeNanos += inMemSorter.getSortTimeNanos();
-        inMemSorter.free();
         inMemSorter = null;
         taskContext.taskMetrics().incMemoryBytesSpilled(released);
         taskContext.taskMetrics().incDiskBytesSpilled(writeMetrics.bytesWritten());
+        taskContext.taskMetrics().incShuffleSpillWriteTime(duration);
         totalSpillBytes += released;
         return released;
       }
@@ -629,6 +741,9 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
             }
             upstream = nextUpstream;
             nextUpstream = null;
+          }
+          if (upstream instanceof PMemReaderForUnsafeExternalSorter) {
+            assert(((PMemReaderForUnsafeExternalSorter)upstream).getNumRecordsRemaining() == numRecords);
           }
           numRecords--;
           upstream.loadNext();
@@ -671,7 +786,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
    * TODO: support forced spilling
    */
   public UnsafeSorterIterator getIterator(int startIndex) throws IOException {
-    if (spillWriters.isEmpty()) {
+    if (spillWriters.isEmpty() && pMemSpillWriters.isEmpty()) {
       assert(inMemSorter != null);
       UnsafeSorterIterator iter = inMemSorter.getSortedIterator();
       moveOver(iter, startIndex);
@@ -681,11 +796,20 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       int i = 0;
       for (UnsafeSorterSpillWriter spillWriter : spillWriters) {
         if (i + spillWriter.recordsSpilled() > startIndex) {
-          UnsafeSorterIterator iter = spillWriter.getReader(serializerManager);
+          UnsafeSorterIterator iter =
+                  spillWriter.getReader(serializerManager, taskContext.taskMetrics());
           moveOver(iter, startIndex - i);
           queue.add(iter);
         }
         i += spillWriter.recordsSpilled();
+      }
+      for (PMemWriter pMemWriter : pMemSpillWriters) {
+        if (i + pMemWriter.getNumOfSpilledRecords() > startIndex) {
+          UnsafeSorterIterator iter = pMemWriter.getPMemReaderForUnsafeExternalSorter();
+          moveOver(iter, startIndex - i);
+          queue.add(iter);
+        }
+        i += pMemWriter.getNumRecordsWritten();
       }
       if (inMemSorter != null) {
         UnsafeSorterIterator iter = inMemSorter.getSortedIterator();

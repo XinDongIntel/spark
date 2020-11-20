@@ -137,6 +137,10 @@ private[spark] object TaskIndexNames {
   final val SHUFFLE_WRITE_RECORDS = "swr"
   final val SHUFFLE_WRITE_SIZE = "sws"
   final val SHUFFLE_WRITE_TIME = "swt"
+  final val SHUFFLE_SPILL_WRITE_TIME = "sswt"
+  final val SHUFFLE_SPILL_READ_TIME = "ssrt"
+  final val SHUFFLE_SPILL_DELETE_TIME = "ssdt"
+  final val SPILL_SORT_TIME = "sst"
   final val STAGE = "stage"
   final val STATUS = "sta"
   final val TASK_INDEX = "idx"
@@ -202,7 +206,15 @@ private[spark] class TaskDataWrapper(
     val memoryBytesSpilled: Long,
     @KVIndexParam(value = TaskIndexNames.DISK_SPILL, parent = TaskIndexNames.STAGE)
     val diskBytesSpilled: Long,
+    @KVIndexParam(value = TaskIndexNames.SHUFFLE_SPILL_WRITE_TIME, parent = TaskIndexNames.STAGE)
+    val shuffleSpillWriteTime: Long,
+    @KVIndexParam(value = TaskIndexNames.SHUFFLE_SPILL_READ_TIME, parent = TaskIndexNames.STAGE)
+    val spillSortTime: Long,
     @KVIndexParam(value = TaskIndexNames.PEAK_MEM, parent = TaskIndexNames.STAGE)
+    val shuffleSpillReadTime: Long,
+    @KVIndexParam(value = TaskIndexNames.SHUFFLE_SPILL_DELETE_TIME, parent = TaskIndexNames.STAGE)
+    val shuffleSpillDeleteTime: Long,
+    @KVIndexParam(value = TaskIndexNames.SPILL_SORT_TIME, parent = TaskIndexNames.STAGE)
     val peakExecutionMemory: Long,
     @KVIndexParam(value = TaskIndexNames.INPUT_SIZE, parent = TaskIndexNames.STAGE)
     val inputBytesRead: Long,
@@ -233,6 +245,7 @@ private[spark] class TaskDataWrapper(
     @KVIndexParam(value = TaskIndexNames.SHUFFLE_WRITE_RECORDS, parent = TaskIndexNames.STAGE)
     val shuffleRecordsWritten: Long,
 
+
     val stageId: Int,
     val stageAttemptId: Int) {
 
@@ -257,6 +270,10 @@ private[spark] class TaskDataWrapper(
         getMetricValue(resultSerializationTime),
         getMetricValue(memoryBytesSpilled),
         getMetricValue(diskBytesSpilled),
+        getMetricValue(shuffleSpillWriteTime),
+        getMetricValue(spillSortTime),
+        getMetricValue(shuffleSpillReadTime),
+        getMetricValue(shuffleSpillDeleteTime),
         getMetricValue(peakExecutionMemory),
         new InputMetrics(
           getMetricValue(inputBytesRead),
@@ -479,6 +496,10 @@ private[spark] class CachedQuantile(
     val memoryBytesSpilled: Double,
     val diskBytesSpilled: Double,
 
+    val shuffleSpillWriteTime: Double,
+    val spillSortTime: Double,
+    val shuffleSpillReadTime: Double,
+    val shuffleSpillDeleteTime: Double,
     val bytesRead: Double,
     val recordsRead: Double,
 

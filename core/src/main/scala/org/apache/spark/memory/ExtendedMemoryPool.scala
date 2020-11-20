@@ -32,8 +32,11 @@ private[memory] class ExtendedMemoryPool(lock: Object) extends MemoryPool(lock) 
   @GuardedBy("lock")
   private val extendedMemoryForTask = new mutable.HashMap[Long, Long]()
 
+  @GuardedBy("lock")
+  private[this] var _memoryUsed: Long = 0L
+
   override def memoryUsed: Long = lock.synchronized {
-    extendedMemoryForTask.values.sum
+    _memoryUsed
   }
 
   /**
@@ -64,7 +67,8 @@ private[memory] class ExtendedMemoryPool(lock: Object) extends MemoryPool(lock) 
       lock.notifyAll()
     }
 
-    if (memoryFree > numBytes) {
+    if (memoryFree >= numBytes) {
+      _memoryUsed += numBytes;
       extendedMemoryForTask(taskAttemptId) += numBytes
       return numBytes
     }
@@ -90,6 +94,8 @@ private[memory] class ExtendedMemoryPool(lock: Object) extends MemoryPool(lock) 
         extendedMemoryForTask.remove(taskAttemptId)
       }
     }
+
+    _memoryUsed -= memoryToFree
     lock.notifyAll() // Notify waiters in acquireMemory() that memory has been freed
   }
 
