@@ -27,7 +27,7 @@ public class PMemSpillWriterFactory {
             SortedIteratorForSpills sortedIterator,
             ShuffleWriteMetrics writeMetrics) {
         if (writerType == PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM) {
-            return new SortedPMemPageSpillWriter(memConsumer, sortedIterator, writeMetics);
+            return new SortedPMemPageSpillWriter(memConsumer, sortedIterator, writeMetrics);
         } else {
             //Todo: add other types of pmem spill writer here
             return null;

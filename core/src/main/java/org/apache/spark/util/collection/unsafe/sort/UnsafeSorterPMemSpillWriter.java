@@ -19,7 +19,7 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
 
     protected ShuffleWriteMetrics shuffleWriteMetrics;
 
-    protected LinkedList<MemoryBlock> allocatedPMemPages = new LinkedList<MemoryBloc>();
+    protected LinkedList<MemoryBlock> allocatedPMemPages = new LinkedList<MemoryBlock>();
 
     //Page size in bytes.
     private static long DEFAULT_PAGE_SIZE = 64*1024*1024;
@@ -42,7 +42,7 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
 
     protected void freeAllPMemPages() {
         for (MemoryBlock page : allocatedPMemPages) {
-            taskMemoryManger.freePage(page, memConsumer);
+            taskMemoryManager.freePage(page, memConsumer);
         }
         allocatedPMemPages.clear();
     }

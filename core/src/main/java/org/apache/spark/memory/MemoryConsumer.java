@@ -100,10 +100,6 @@ public abstract class MemoryConsumer {
     return new LongArray(page);
   }
 
-  public LongArray allocateArrayOnPmem(long size) {
-
-  }
-
   /**
    * Frees a LongArray.
    */

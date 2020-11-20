@@ -399,7 +399,7 @@ public class TaskMemoryManager {
     page.pageNumber = MemoryBlock.FREED_IN_TMM_PAGE_NUMBER;
     if (page.isExtendedMemory) {
       memoryManager.extendedMemoryAllocator().free(page);
-      releaseExtendedMemory(pageSize);
+      releaseExtendedMemory(pageSize, consumer);
     } else {
       memoryManager.tungstenMemoryAllocator().free(page);
       releaseExecutionMemory(pageSize, consumer);

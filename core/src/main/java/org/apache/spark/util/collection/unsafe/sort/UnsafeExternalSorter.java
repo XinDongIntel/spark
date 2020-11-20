@@ -219,12 +219,13 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       spillWriters.size(),
       spillWriters.size() > 1 ? " times" : " time");
 
+    ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
     UnsafeSorterIterator sortedIterator = inMemSorter.getSortedIterator();
 
     if (spillToPMemEnabled && (sortedIterator instanceof UnsafeInMemorySorter.SortedIterator)) {
-      spillToPMem(sortedIterator);
+      spillToPMem(sortedIterator, writeMetrics);
     } else {
-      spillToDisk(sortedIterator);
+      spillToDisk(sortedIterator, writeMetrics);
     }
 
     final long spillSize = freeMemory();
@@ -242,8 +243,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     return spillSize;
   }
 
-  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator) throws IOException {
-    ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
+  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
     UnsafeInMemorySorter.SortedIterator sortedIte = (UnsafeInMemorySorter.SortedIterator)sortedIterator;
     SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIte,inMemSorter);
     UnsafeSorterPMemSpillWriter spillWriter = PMemSpillWriterFactory.getSpillWriter(
@@ -256,8 +256,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     return spillWriter;
   }
 
-  public UnsafeSorterSpillWriter spillToDisk(UnsafeSorterIterator sortedIterator) throws IOException {
-    ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
+  public UnsafeSorterSpillWriter spillToDisk(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
     final UnsafeSorterSpillWriter spillWriter = new UnsafeSorterSpillWriter(
             blockManager,
             fileBufferSizeBytes,
@@ -565,13 +564,14 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
           && numRecords > 0)) {
           return 0L;
         }
+        ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
         if (!spillToPMemEnabled) {
           UnsafeInMemorySorter.SortedIterator inMemIterator =
                   ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
-          UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator);
+          UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator, writeMetrics);
           nextUpstream = spillWriter.getReader(serializerManager);
         } else {
-          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator) upstream);
+          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator) upstream, writeMetrics);
           nextUpstream = spillWriter.getSpillReader();
         }
 
