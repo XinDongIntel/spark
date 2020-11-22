@@ -588,13 +588,13 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         long startTime = System.nanoTime();
         long released = 0L;
         if (spillToPMemEnabled && taskMemoryManager.acquireExtendedMemory(required) == required) {
-          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator) upstream, writeMetrics);
+          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem(upstream, writeMetrics, isYan);
           nextUpstream = spillWriter.getSpillReader();
         } else {
           UnsafeInMemorySorter.SortedIterator inMemIterator =
               ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
           UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator, writeMetrics);
-          nextUpstream = spillWriter.getReader(serializerManager);
+          nextUpstream = spillWriter.getReader(serializerManager, taskContext.taskMetrics());
         }
 
         released += inMemSorter.getMemoryUsage();
@@ -712,14 +712,6 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
           queue.add(iter);
         }
         i += spillWriter.recordsSpilled();
-      }
-      for (PMemWriter pMemWriter : pMemSpillWriters) {
-        if (i + pMemWriter.getNumOfSpilledRecords() > startIndex) {
-          UnsafeSorterIterator iter = pMemWriter.getPMemReaderForUnsafeExternalSorter();
-          moveOver(iter, startIndex - i);
-          queue.add(iter);
-        }
-        i += pMemWriter.getNumRecordsWritten();
       }
       if (inMemSorter != null) {
         UnsafeSorterIterator iter = inMemSorter.getSortedIterator();
