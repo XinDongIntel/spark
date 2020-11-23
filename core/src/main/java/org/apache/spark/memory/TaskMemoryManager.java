@@ -581,7 +581,7 @@ public class TaskMemoryManager {
         if (page != null) {
           logger.debug("unreleased page: " + page + " in task " + taskAttemptId);
           page.pageNumber = MemoryBlock.FREED_IN_TMM_PAGE_NUMBER;
-          if (page.location == 0){
+          if (!page.isExtendedMemory){
             memoryManager.tungstenMemoryAllocator().free(page);
           } else {
             memoryManager.extendedMemoryAllocator().free(page);

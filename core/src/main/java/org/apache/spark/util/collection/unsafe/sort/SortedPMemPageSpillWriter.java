@@ -18,6 +18,7 @@
 package org.apache.spark.util.collection.unsafe.sort;
 
 import org.apache.spark.executor.ShuffleWriteMetrics;
+import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.UnsafeAlignedOffset;
@@ -41,7 +42,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             SortedIteratorForSpills sortedIterator,
             ShuffleWriteMetrics writeMetrics,
             TaskMetrics taskMetrics) {
-        super(memConsumer, sortedIterator, writeMetrics);
+        super(externalSorter, sortedIterator, writeMetrics, taskMetrics);
     }
 
     //This write will write all spilled record in physically sorted PMem page.

@@ -18,7 +18,8 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
 
     protected TaskMemoryManager taskMemoryManager;
 
-    protected ShuffleWriteMetrics shuffleWriteMetrics;
+    //Todo: It's confusing to have ShuffleWriteMetrics here. will reconsider and fix it later.
+    protected ShuffleWriteMetrics writeMetrics;
 
     protected TaskMetrics taskMetrics;
 
@@ -35,19 +36,23 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
         this.externalSorter = externalSorter;
         this.taskMemoryManager = externalSorter.getTaskMemoryManager();
         this.sortedIterator = sortedIterator;
-        this.shuffleWriteMetrics = writeMetrics;
+        this.writeMetrics = writeMetrics;
         this.taskMetrics = taskMetrics;
     }
 
-    protected MemoryBlock allocatePMemPage() {
-        MemoryBlock page = taskMemoryManager.allocatePage(DEFAULT_PAGE_SIZE, memConsumer, true);
+    protected MemoryBlock allocatePMemPage() { ;
+        return allocatePMemPage(DEFAULT_PAGE_SIZE);
+    }
+
+    protected MemoryBlock allocatePMemPage(long size) {
+        MemoryBlock page = taskMemoryManager.allocatePage(size, externalSorter, true);
         allocatedPMemPages.add(page);
         return page;
     }
 
     protected void freeAllPMemPages() {
         for (MemoryBlock page : allocatedPMemPages) {
-            taskMemoryManager.freePage(page, memConsumer);
+            taskMemoryManager.freePage(page, externalSorter);
         }
         allocatedPMemPages.clear();
     }

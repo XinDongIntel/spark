@@ -24,6 +24,7 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
         super(externalSorter, sortedIterator, writeMetrics, taskMetrics);
         this.numRecordsWritten = sortedIterator.getNumRecords();
         this.allocatedDramPages = externalSorter.getAllocatedPages();
+        this.sortedArray = sortedIterator.getLongArray();
     }
 
     private boolean dumpPageToPMem(MemoryBlock page) {
@@ -54,7 +55,7 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
         long dumpDuration = System.nanoTime() - dumpTime;
         System.out.println("dump time : " + dumpDuration / 1000000);
         long sortTime = System.nanoTime();
-        updateLongArray(sortedIterator.getLongArray(), numRecordsWritten, 0);
+        updateLongArray(numRecordsWritten, 0);
         long sortDuration = System.nanoTime() - sortTime;
         System.out.println("sort time : " + sortDuration / 1000000);
     }
@@ -65,19 +66,11 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
     }
 
     public void clearAll() {
-        if (getSortedArray().memoryBlock().pageNumber != MemoryBlock.FREED_IN_ALLOCATOR_PAGE_NUMBER) {
-            externalSorter.freeArray(getSortedArray());
-        }
-        for (MemoryBlock block : allocatedPMemPages) {
-            freePMemPage(block);
-        }
+        externalSorter.freeArray(sortedArray);
+        freeAllPMemPages();
     }
 
-    private void freePMemPage(MemoryBlock page) {
-        taskMemoryManager.freePMemPage(page, externalSorter);
-    }
-
-    private void updateLongArray(LongArray sortedArray, int numRecords, int position) {
+    private void updateLongArray(int numRecords, int position) {
         this.position = position;
         while (position < numRecords * 2){
             // update recordPointer in this array
@@ -90,9 +83,5 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
             position += 2;
         }
         this.sortedArray = sortedArray;
-    }
-
-    public LongArray getSortedArray() {
-        return sortedArray;
     }
 }
