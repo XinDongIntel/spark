@@ -2,45 +2,35 @@ package org.apache.spark.util.collection.unsafe.sort;
 
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
-import org.apache.spark.memory.MemoryConsumer;
-import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.array.LongArray;
 import org.apache.spark.unsafe.memory.MemoryBlock;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedList;
 
 public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
-    private final ShuffleWriteMetrics writeMetrics;
-    private final TaskMemoryManager taskMemoryManager;
-    private final LinkedList<MemoryBlock> allocatedPMemPages = new LinkedList<>();
     private LongArray sortedArray;
-    private HashMap<MemoryBlock, MemoryBlock> pageMap = new HashMap<>();
+    private HashMap<MemoryBlock, MemoryBlock> pageMap = new HashMap<MemoryBlock, MemoryBlock>();
     private int numRecordsWritten;
-    private TaskMetrics taskMetrics;
     private int position;
-    private LinkedList<MemoryBlock> allocatedPages;
+    private LinkedList<MemoryBlock> allocatedDramPages;
 
     public PMemWriter(
-        MemoryConsumer memoryConsumer,
-        SortedIteratorForSpills sortedIterator, ShuffleWriteMetrics writeMetrics, TaskMetrics taskMetrics,
-        TaskMemoryManager taskMemoryManager, int numRecords, LinkedList<MemoryBlock> allocatedPages) {
-        super(memoryConsumer, sortedIterator, writeMetrics);
-        this.writeMetrics = writeMetrics;
-        this.taskMetrics = taskMetrics;
-        this.taskMemoryManager = taskMemoryManager;
-        this.numRecordsWritten = numRecords;
-        this.allocatedPages = allocatedPages;
+            UnsafeExternalSorter externalSorter,
+            SortedIteratorForSpills sortedIterator,
+            ShuffleWriteMetrics writeMetrics,
+            TaskMetrics taskMetrics) {
+        super(externalSorter, sortedIterator, writeMetrics, taskMetrics);
+        this.numRecordsWritten = sortedIterator.getNumRecords();
+        this.allocatedDramPages = externalSorter.getAllocatedPages();
     }
 
-    public boolean dumpPageToPMem(MemoryBlock page) {
-        MemoryBlock pMemBlock = taskMemoryManager.allocatePMemPage(page.size());
+    private boolean dumpPageToPMem(MemoryBlock page) {
+        MemoryBlock pMemBlock = allocatePMemPage(page.size());
         if (pMemBlock != null) {
             Platform.copyMemory(page.getBaseObject(), page.getBaseOffset(), null, pMemBlock.getBaseOffset(), page.size());
             writeMetrics.incBytesWritten(page.size());
-            allocatedPMemPages.add(pMemBlock);
             pageMap.put(page, pMemBlock);
             return true;
         }
@@ -51,8 +41,6 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
         return numRecordsWritten;
     }
 
-    public LinkedList<MemoryBlock> getAllocatedPMemPages() { return allocatedPMemPages; }
-
     public PMemReaderForUnsafeExternalSorter getPMemReaderForUnsafeExternalSorter() {
         return new PMemReaderForUnsafeExternalSorter(sortedArray, position, numRecordsWritten, taskMetrics);
     }
@@ -60,7 +48,7 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
     @Override
     public void write() {
         long dumpTime = System.nanoTime();
-        for (MemoryBlock page : allocatedPages) {
+        for (MemoryBlock page : allocatedDramPages) {
             dumpPageToPMem(page);
         }
         long dumpDuration = System.nanoTime() - dumpTime;
@@ -78,15 +66,15 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
 
     public void clearAll() {
         if (getSortedArray().memoryBlock().pageNumber != MemoryBlock.FREED_IN_ALLOCATOR_PAGE_NUMBER) {
-            memConsumer.freeArray(getSortedArray());
+            externalSorter.freeArray(getSortedArray());
         }
-        for (MemoryBlock block : getAllocatedPMemPages()) {
+        for (MemoryBlock block : allocatedPMemPages) {
             freePMemPage(block);
         }
     }
 
-    protected void freePMemPage(MemoryBlock page) {
-        taskMemoryManager.freePMemPage(page, memConsumer);
+    private void freePMemPage(MemoryBlock page) {
+        taskMemoryManager.freePMemPage(page, externalSorter);
     }
 
     private void updateLongArray(LongArray sortedArray, int numRecords, int position) {
@@ -107,8 +95,4 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
     public LongArray getSortedArray() {
         return sortedArray;
     }
-
-    public int getNumOfSpilledRecords() { return numRecordsWritten - position/2; }
-
-
 }

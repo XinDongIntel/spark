@@ -4,6 +4,7 @@ import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.unsafe.array.LongArray;
 import org.apache.spark.executor.ShuffleWriteMetrics;
+import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.unsafe.memory.MemoryBlock;
 import java.util.LinkedList;
 
@@ -11,7 +12,7 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
     /**
      * the memConsumer used to allocate pmem pages
      */
-    protected MemoryConsumer memConsumer;
+    protected UnsafeExternalSorter externalSorter;
 
     protected SortedIteratorForSpills sortedIterator;
 
@@ -19,19 +20,23 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
 
     protected ShuffleWriteMetrics shuffleWriteMetrics;
 
+    protected TaskMetrics taskMetrics;
+
     protected LinkedList<MemoryBlock> allocatedPMemPages = new LinkedList<MemoryBlock>();
 
     //Page size in bytes.
     private static long DEFAULT_PAGE_SIZE = 64*1024*1024;
 
     public UnsafeSorterPMemSpillWriter(
-        MemoryConsumer memConsumer,
+        UnsafeExternalSorter externalSorter,
         SortedIteratorForSpills sortedIterator,
-        ShuffleWriteMetrics writeMetrics) {
-        this.memConsumer = memConsumer;
-        this.taskMemoryManager = memConsumer.getTaskMemoryManager();
+        ShuffleWriteMetrics writeMetrics,
+        TaskMetrics taskMetrics) {
+        this.externalSorter = externalSorter;
+        this.taskMemoryManager = externalSorter.getTaskMemoryManager();
         this.sortedIterator = sortedIterator;
         this.shuffleWriteMetrics = writeMetrics;
+        this.taskMetrics = taskMetrics;
     }
 
     protected MemoryBlock allocatePMemPage() {

@@ -229,9 +229,17 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     // firstly try to spill to PMem if spark.memory.spill.pmem.enabled set to true
     long required = getMemoryUsage();
     //FIXME handle this at SpillWriter
-    if (spillToPMemEnabled && (sortedIterator instanceof UnsafeInMemorySorter.SortedIterator
-        && taskMemoryManager.acquireExtendedMemory(required) == required)) {
-      spillToPMem(sortedIterator, writeMetrics, false);
+    if (spillToPMemEnabled && (sortedIterator instanceof UnsafeInMemorySorter.SortedIterator)) {
+      //Todo: the logic here requires more extended memory than needed for option 3.
+      // Will change options3 implementation to acquire memory when needed and support
+      // fallback to spill to disk in case of pMem is not sufficient.
+      long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
+      if (memoryGot == required) {
+        spillToPMem(upstream, writeMetrics, isYan);
+      } else {
+        // for acquired but not used memory, just release it.
+        taskMemoryManager.releaseExtendedMemory(memoryGot);
+      }
     } else {
       spillToDisk(sortedIterator, writeMetrics);
     }
@@ -254,13 +262,13 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics, boolean isYan) throws IOException {
     UnsafeInMemorySorter.SortedIterator sortedIte = (UnsafeInMemorySorter.SortedIterator) sortedIterator;
     SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIte, inMemSorter);
-    //TODO unify using factory to get writer
-    final UnsafeSorterPMemSpillWriter spillWriter = isYan ? PMemSpillWriterFactory.getSpillWriter(
+    //todo:Add spark configuration to switch between the writers.
+    final UnsafeSorterPMemSpillWriter spillWriter = PMemSpillWriterFactory.getSpillWriter(
         PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM,
         this,
         sortedSpillIte,
-        writeMetrics) : new PMemWriter(this, sortedSpillIte, writeMetrics, taskContext.taskMetrics(),
-        taskMemoryManager, inMemSorter.numRecords(), allocatedPages);
+        writeMetrics,
+        taskContext.taskMetrics());
     pMemSpillWriters.add(spillWriter);
     spillWriter.write();
     return spillWriter;
@@ -327,6 +335,9 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     return allocatedPages.size();
   }
 
+  public LinkedList<MemoryBlock> getAllocatedPages() {
+    return this.allocatedPages;
+  }
   /**
    * Free this sorter's data pages.
    *
@@ -587,8 +598,17 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         long required = getMemoryUsage();
         long startTime = System.nanoTime();
         long released = 0L;
-        if (spillToPMemEnabled && taskMemoryManager.acquireExtendedMemory(required) == required) {
-          UnsafeSorterPMemSpillWriter spillWriter = spillToPMem(upstream, writeMetrics, isYan);
+        //Todo: the logic here requires more extended memory than needed for option 3.
+        // Will change options3 implementation to acquire memory when needed and support
+        // fallback to spill to disk in case of pMem is not sufficient.
+        if (spillToPMemEnabled) {
+          long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
+          if (memoryGot == required) {
+            UnsafeSorterPMemSpillWriter spillWriter = spillToPMem(upstream, writeMetrics, isYan);
+          } else {
+            // for acquired but not used memory, just release it.
+            taskMemoryManager.releaseExtendedMemory(memoryGot);
+          }
           nextUpstream = spillWriter.getSpillReader();
         } else {
           UnsafeInMemorySorter.SortedIterator inMemIterator =

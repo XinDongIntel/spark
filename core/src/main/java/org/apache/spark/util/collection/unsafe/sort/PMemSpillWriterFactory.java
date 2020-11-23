@@ -19,15 +19,19 @@ package org.apache.spark.util.collection.unsafe.sort;
 
 import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.executor.ShuffleWriteMetrics;
+import org.apache.spark.executor.TaskMetrics;
 
 public class PMemSpillWriterFactory {
     public static UnsafeSorterPMemSpillWriter getSpillWriter(
             PMemSpillWriterType writerType,
-            MemoryConsumer memConsumer,
+            UnsafeExternalSorter externalSorter,
             SortedIteratorForSpills sortedIterator,
-            ShuffleWriteMetrics writeMetrics) {
+            ShuffleWriteMetrics writeMetrics,
+            TaskMetrics taskMetrics) {
         if (writerType == PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM) {
-            return new SortedPMemPageSpillWriter(memConsumer, sortedIterator, writeMetrics);
+            return new SortedPMemPageSpillWriter(externalSorter, sortedIterator, writeMetrics, taskMetrics);
+        } else if (writerType == PMemSpillWriterType.MEM_COPY_ALL_DATA_PAGES_TO_PMEM_WITHLONGARRAY){
+            new PMemWriter(externalSorter, sortedIterator, writeMetrics, taskMetrics);
         } else {
             //Todo: add other types of pmem spill writer here
             return null;

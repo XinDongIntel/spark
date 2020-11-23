@@ -48,17 +48,15 @@ public class MemoryBlock extends MemoryLocation {
   private final long length;
 
   /**
-   * indicates page location on DRAM(0) or extended memory(1)
-   */
-  public int location;
-
-  /**
    * Optional page number; used when this MemoryBlock represents a page allocated by a
    * TaskMemoryManager. This field is public so that it can be modified by the TaskMemoryManager,
    * which lives in a different package.
    */
   public int pageNumber = NO_PAGE_NUMBER;
 
+  /**
+   * Indicate the memory block is on extended memory or not.
+   */
   public boolean isExtendedMemory = false;
 
   public MemoryBlock(@Nullable Object obj, long offset, long length) {

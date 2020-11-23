@@ -37,9 +37,10 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     private int numRecords = 0;
 
     public SortedPMemPageSpillWriter(
-            MemoryConsumer memConsumer,
+            UnsafeExternalSorter externalSorter,
             SortedIteratorForSpills sortedIterator,
-            ShuffleWriteMetrics writeMetrics) {
+            ShuffleWriteMetrics writeMetrics,
+            TaskMetrics taskMetrics) {
         super(memConsumer, sortedIterator, writeMetrics);
     }
 

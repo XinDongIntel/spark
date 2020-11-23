@@ -232,6 +232,7 @@ public class TaskMemoryManager {
 
   /**
    * acquire extended memory
+   * When extended memory is acqurired, spill will not be triggered.
    * @param required
    * @return
    */
@@ -380,7 +381,6 @@ public class TaskMemoryManager {
     }
 
     page.pageNumber = pageNumber;
-    page.location = 0;
     pageTable[pageNumber] = page;
     if (logger.isTraceEnabled()) {
       logger.trace("Allocate page number {} ({} bytes)", pageNumber, acquired);
@@ -447,13 +447,12 @@ public class TaskMemoryManager {
       logger.error("Failed to allocate a PMem page ({} bytes).", size);
     }
     page.pageNumber = pageNumber;
-    page.location = 1;
+    page.isExtendedMemory(true);
     pageTable[pageNumber] = page;
     if (logger.isTraceEnabled()) {
       logger.trace("Allocate page number {} ({} bytes)", pageNumber, size);
     }
     return page;
-
   }
 
   public void freePMemPage(MemoryBlock page, MemoryConsumer consumer) {
