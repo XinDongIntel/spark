@@ -107,6 +107,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         private int curPageIdx = -1;
         private int curOffsetInPage = 0;
         private int curNumOfRecInPage = 0;
+        private int curNumOfRec = 0;
         private long curRecordAddress = 0;
         private int recordLength;
         private long keyPrefix;
@@ -115,7 +116,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         }
         @Override
         public boolean hasNext() {
-            return false;
+            return curNumOfRec < numRecords;
         }
 
         @Override
@@ -129,6 +130,8 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             keyPrefix = Platform.getLong(null, curPageBaseOffset + curOffsetInPage);
             curOffsetInPage += Long.BYTES;
             curRecordAddress = curPageBaseOffset + curOffsetInPage;
+            curNumOfRecInPage ++;
+            curNumOfRec ++;
         }
 
         private void moveToNextPMemPage() {
