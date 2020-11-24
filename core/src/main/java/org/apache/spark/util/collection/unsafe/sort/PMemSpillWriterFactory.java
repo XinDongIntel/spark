@@ -32,9 +32,8 @@ public class PMemSpillWriterFactory {
             return new SortedPMemPageSpillWriter(externalSorter, sortedIterator, writeMetrics, taskMetrics);
         } else if (writerType == PMemSpillWriterType.MEM_COPY_ALL_DATA_PAGES_TO_PMEM_WITHLONGARRAY){
             new PMemWriter(externalSorter, sortedIterator, writeMetrics, taskMetrics);
-        } else {
-            //Todo: add other types of pmem spill writer here
-            return null;
         }
+        //Todo: add other types of pmem spill writer here
+        return null;
     }
 }

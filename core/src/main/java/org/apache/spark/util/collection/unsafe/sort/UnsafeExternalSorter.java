@@ -80,6 +80,11 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   private final boolean spillToPMemEnabled = SparkEnv.get() != null && (boolean) SparkEnv.get().conf().get(
          package$.MODULE$.MEMORY_SPILL_PMEM_ENABLED());
   /**
+   * USAFE_EXTERNAL_SORTER_SPILL_WRITE_TYPE
+   */
+  private final String  spillWriterType = SparkEnv.get() != null && (boolean) SparkEnv.get().conf().get(
+          package$.MODULE$.USAFE_EXTERNAL_SORTER_SPILL_WRITE_TYPE());
+  /**
    * Memory pages that hold the records being sorted. The pages in this list are freed when
    * spilling, although in principle we could recycle these pages across spills (on the other hand,
    * this might not be necessary if we maintained a pool of re-usable pages in the TaskMemoryManager
@@ -89,8 +94,6 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
 
   private final LinkedList<UnsafeSorterSpillWriter> spillWriters = new LinkedList<>();
 
-  //FIXME
-  boolean isYan = true;
   private final LinkedList<SpillWriterForUnsafeSorter> pMemSpillWriters = new LinkedList<SpillWriterForUnsafeSorter>();
 
   // These variables are reset after spilling:
@@ -235,7 +238,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       // fallback to spill to disk in case of pMem is not sufficient.
       long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
       if (memoryGot == required) {
-        spillToPMem(sortedIterator, writeMetrics, isYan);
+        spillToPMem(sortedIterator, writeMetrics);
       } else {
         // for acquired but not used memory, just release it.
         taskMemoryManager.releaseExtendedMemory(memoryGot);
@@ -260,14 +263,14 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     totalSpillBytes += spillSize;
     return spillSize;
   }
-
-  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics, boolean isYan) throws IOException {
+  //Todo: It's confusing to pass in ShuffleWriteMetrics here. Will reconsider and fix it later
+  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
     UnsafeInMemorySorter.SortedIterator sortedIte = (UnsafeInMemorySorter.SortedIterator) sortedIterator;
     SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIte, inMemSorter);
-    //todo:Add spark configuration to switch between the writers.
+    PMemSpillWriterType wirterType = PMemSpillWriterType.valueOf(spillWriterType);
     final UnsafeSorterPMemSpillWriter spillWriter = PMemSpillWriterFactory.getSpillWriter(
-        PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM,
-        this,
+        wirterType,
+       this,
         sortedSpillIte,
         writeMetrics,
         taskContext.taskMetrics());
@@ -606,7 +609,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         if (spillToPMemEnabled) {
           long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
           if (memoryGot == required) {
-            UnsafeSorterPMemSpillWriter spillWriter = spillToPMem(upstream, writeMetrics, isYan);
+            UnsafeSorterPMemSpillWriter spillWriter = spillToPMem(upstream, writeMetrics);
             nextUpstream = spillWriter.getSpillReader();
           } else {
             // for acquired but not used memory, just release it.
