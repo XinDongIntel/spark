@@ -80,10 +80,9 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   private final boolean spillToPMemEnabled = SparkEnv.get() != null && (boolean) SparkEnv.get().conf().get(
          package$.MODULE$.MEMORY_SPILL_PMEM_ENABLED());
   /**
-   * USAFE_EXTERNAL_SORTER_SPILL_WRITE_TYPE
+   * spillWriterType
    */
-  private final String  spillWriterType = SparkEnv.get() != null && (boolean) SparkEnv.get().conf().get(
-          package$.MODULE$.USAFE_EXTERNAL_SORTER_SPILL_WRITE_TYPE());
+  private String  spillWriterType = null;
   /**
    * Memory pages that hold the records being sorted. The pages in this list are freed when
    * spilling, although in principle we could recycle these pages across spills (on the other hand,
@@ -164,7 +163,12 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     // Use getSizeAsKb (not bytes) to maintain backwards compatibility for units
     // this.fileBufferSizeBytes = (int) conf.getSizeAsKb("spark.shuffle.file.buffer", "32k") * 1024
     this.fileBufferSizeBytes = 32 * 1024;
-
+    SparkEnv sparkEnv = SparkEnv.get();
+    if (sparkEnv != null && sparkEnv.conf() != null){
+      this.spillWriterType = sparkEnv.conf().get(package$.MODULE$.USAFE_EXTERNAL_SORTER_SPILL_WRITE_TYPE());
+    } else {
+      this.spillWriterType = PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM.toString();
+    }
     if (existingInMemorySorter == null) {
       RecordComparator comparator = null;
       if (recordComparatorSupplier != null) {
