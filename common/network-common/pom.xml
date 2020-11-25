@@ -35,6 +35,11 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>com.intel.oap</groupId>
+      <artifactId>oap-common</artifactId>
+      <version>0.9.0</version>
+    </dependency>
     <!-- SPARK-28932 This is required in JDK11 -->
     <dependency>
       <groupId>org.scala-lang</groupId>

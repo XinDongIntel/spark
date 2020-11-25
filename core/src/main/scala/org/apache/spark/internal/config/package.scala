@@ -1096,6 +1096,13 @@ package object config {
       .stringConf
       .createWithDefault(classOf[LocalDiskShuffleDataIO].getName)
 
+  val PMEM_PROPERTY_FILE =
+    ConfigBuilder("spark.shuffle.pmem.config.file")
+      .doc("A config file used to config Intel PMem settings for shuffle.")
+      .version("3.0.0")
+      .stringConf
+      .createWithDefault("pmem.properties")
+
   private[spark] val SHUFFLE_FILE_BUFFER_SIZE =
     ConfigBuilder("spark.shuffle.file.buffer")
       .doc("Size of the in-memory buffer for each shuffle file output stream, in KiB unless " +
