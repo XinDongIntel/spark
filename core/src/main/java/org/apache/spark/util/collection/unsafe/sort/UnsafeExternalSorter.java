@@ -242,7 +242,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       // fallback to spill to disk in case of pMem is not sufficient.
       long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
       if (memoryGot == required) {
-        spillToPMem(sortedIterator, writeMetrics);
+        spillToPMem((UnsafeInMemorySorter.SortedIterator)sortedIterator, writeMetrics);
       } else {
         // for acquired but not used memory, just release it.
         taskMemoryManager.releaseExtendedMemory(memoryGot);
@@ -268,9 +268,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     return spillSize;
   }
   //Todo: It's confusing to pass in ShuffleWriteMetrics here. Will reconsider and fix it later
-  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
-    UnsafeInMemorySorter.SortedIterator sortedIte = (UnsafeInMemorySorter.SortedIterator) sortedIterator;
-    SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIte, inMemSorter);
+  public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeInMemorySorter.SortedIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
+    SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIterator, inMemSorter);
     PMemSpillWriterType wirterType = PMemSpillWriterType.valueOf(spillWriterType);
     final UnsafeSorterPMemSpillWriter spillWriter = PMemSpillWriterFactory.getSpillWriter(
         wirterType,
@@ -559,6 +558,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       return spillMerger.getSortedIterator();
     }
   }
+  @VisibleForTesting UnsafeInMemorySorter getInMemSorter() { return inMemSorter; }
 
   @VisibleForTesting boolean hasSpaceForAnotherRecord() {
     return inMemSorter.hasSpaceForAnotherRecord();
@@ -612,8 +612,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         // fallback to spill to disk in case of pMem is not sufficient.
         if (spillToPMemEnabled) {
           long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
-          if (memoryGot == required) {
-            UnsafeSorterPMemSpillWriter spillWriter = spillToPMem(upstream, writeMetrics);
+          if (memoryGot == required && upstream instanceof UnsafeInMemorySorter.SortedIterator) {
+            UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator)upstream, writeMetrics);
             nextUpstream = spillWriter.getSpillReader();
           } else {
             // for acquired but not used memory, just release it.
