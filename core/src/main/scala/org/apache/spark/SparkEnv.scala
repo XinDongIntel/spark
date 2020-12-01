@@ -236,7 +236,7 @@ object SparkEnv extends Logging {
       advertiseAddress: String,
       port: Option[Int],
       isLocal: Boolean,
-      numUsableCores: IshuffleManagernt,
+      numUsableCores: Int,
       ioEncryptionKey: Option[Array[Byte]],
       listenerBus: LiveListenerBus = null,
       mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
