@@ -236,7 +236,7 @@ object SparkEnv extends Logging {
       advertiseAddress: String,
       port: Option[Int],
       isLocal: Boolean,
-      numUsableCores: Int,
+      numUsableCores: IshuffleManagernt,
       ioEncryptionKey: Option[Array[Byte]],
       listenerBus: LiveListenerBus = null,
       mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
@@ -247,6 +247,7 @@ object SparkEnv extends Logging {
     if (pMemEnabled && !isDriver) {
       val pMemInitialPath = conf.get(MEMORY_EXTENDED_PATH)
       val pMemInitialSize = conf.get(MEMORY_EXTENDED_SIZE)
+      logInfo(s"Prepare for init PMem:initialize path: ${pMemInitialPath}, size: ${pMemInitialSize} ")
       PersistentMemoryPlatform.initialize(pMemInitialPath, pMemInitialSize, 0)
       logInfo(s"PMem initialize path: ${pMemInitialPath}, size: ${pMemInitialSize} ")
     }
