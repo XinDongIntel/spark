@@ -25,9 +25,11 @@ import org.apache.spark.unsafe.UnsafeAlignedOffset;
 import org.apache.spark.unsafe.memory.MemoryBlock;
 import java.io.IOException;
 import java.util.LinkedHashMap;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
+    private static final Logger sorted_logger = LoggerFactory.getLogger(SortedPMemPageSpillWriter.class);
     private MemoryBlock currentPMemPage = null;
     private long currentOffsetInPage = 0L;
     private int currentNumOfRecordsInPage = 0;
@@ -62,6 +64,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             if (currentOffset > pageBaseOffset + currentPMemPage.size()) {
                 allocatePMemPage();
             }
+            sorted_logger.info("write record to PMem: offset {}, current RecLen {}, prefix {}",currentOffset, currentRecLen, currentPrefix);
             Platform.putInt(
                     null,
                     currentOffset,
@@ -103,6 +106,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     }
 
     private class SortedPMemPageSpillReader extends UnsafeSorterIterator {
+        private final Logger sorted_reader_logger = LoggerFactory.getLogger(SortedPMemPageSpillReader.class);
         private MemoryBlock curPage = null;
         private int curPageIdx = -1;
         private int curOffsetInPage = 0;
@@ -126,8 +130,10 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             }
             long curPageBaseOffset = curPage.getBaseOffset();
             recordLength = UnsafeAlignedOffset.getSize(null, curPageBaseOffset + curOffsetInPage);
+            sorted_reader_logger.info("Load record from PMem {} :rec length:{}", curPageBaseOffset, recordLength);
             curOffsetInPage += UnsafeAlignedOffset.getUaoSize();
             keyPrefix = Platform.getLong(null, curPageBaseOffset + curOffsetInPage);
+            sorted_reader_logger.info("Load record from PMem keyPrefix :{}", keyPrefix);
             curOffsetInPage += Long.BYTES;
             curRecordAddress = curPageBaseOffset + curOffsetInPage;
             curNumOfRecInPage ++;
@@ -139,6 +145,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             curPage = allocatedPMemPages.get(curPageIdx);
             curOffsetInPage = 0;
             curNumOfRecInPage = 0;
+            sorted_reader_logger.info("move to read next PMEM page {}", curPage.getBaseOffset());
         }
 
         @Override

@@ -7,8 +7,11 @@ import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.unsafe.memory.MemoryBlock;
 import java.util.LinkedList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsafeSorter{
+    protected static final Logger logger = LoggerFactory.getLogger(UnsafeSorterPMemSpillWriter.class);
     /**
      * the memConsumer used to allocate pmem pages
      */
@@ -45,7 +48,9 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
     }
 
     protected MemoryBlock allocatePMemPage(long size) {
+        logger.info("call allocate Pmem Page:{}",size);
         MemoryBlock page = taskMemoryManager.allocatePage(size, externalSorter, true);
+        logger.info("PMem page allocated baseOffset:{}",page.getBaseOffset());
         allocatedPMemPages.add(page);
         return page;
     }
@@ -53,6 +58,7 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
     protected void freeAllPMemPages() {
         for (MemoryBlock page : allocatedPMemPages) {
             taskMemoryManager.freePage(page, externalSorter);
+            logger.info("free PMem Page:{}",page.getBaseOffset());
         }
         allocatedPMemPages.clear();
     }
