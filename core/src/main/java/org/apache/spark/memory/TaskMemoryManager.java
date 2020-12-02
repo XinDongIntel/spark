@@ -241,6 +241,7 @@ public class TaskMemoryManager {
     logger.info("Task {} acquire {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(required));
     synchronized (this) {
       long got = memoryManager.acquireExtendedMemory(required, taskAttemptId);
+      logger.info("Task {} got {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(got));
       // The MemoryConsumer which acquired extended memory should be traced in TaskMemoryManagr.
       // Not very sure about whether it should be added to the consumers here. Maybe should maintain
       // another list for consumers which use extended memory.

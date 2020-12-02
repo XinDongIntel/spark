@@ -48,7 +48,6 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
     }
 
     protected MemoryBlock allocatePMemPage(long size) {
-        logger.info("call allocate Pmem Page:{}",size);
         MemoryBlock page = taskMemoryManager.allocatePage(size, externalSorter, true);
         logger.info("PMem page allocated baseOffset:{}",page.getBaseOffset());
         allocatedPMemPages.add(page);

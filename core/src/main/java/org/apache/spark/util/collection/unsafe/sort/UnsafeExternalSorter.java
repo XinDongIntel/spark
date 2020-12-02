@@ -270,10 +270,10 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
   //Todo: It's confusing to pass in ShuffleWriteMetrics here. Will reconsider and fix it later
   public UnsafeSorterPMemSpillWriter spillToPMem(UnsafeInMemorySorter.SortedIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
     SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(sortedIterator, inMemSorter);
-    PMemSpillWriterType wirterType = PMemSpillWriterType.valueOf(spillWriterType);
+    PMemSpillWriterType writerType = PMemSpillWriterType.valueOf(spillWriterType);
     logger.info("PMemSpillWriterType:{}",writerType.toString());
     final UnsafeSorterPMemSpillWriter spillWriter = PMemSpillWriterFactory.getSpillWriter(
-        wirterType,
+        writerType,
        this,
         sortedSpillIte,
         writeMetrics,

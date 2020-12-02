@@ -61,15 +61,19 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             }
             long pageBaseOffset = currentPMemPage.getBaseOffset();
             long currentOffset = pageBaseOffset + currentOffsetInPage;
-            if (currentOffset > pageBaseOffset + currentPMemPage.size()) {
+            long leftLenInCurPage = currentPMemPage.size() - currentOffset;
+            int uaoSize = UnsafeAlignedOffset.getUaoSize();
+            long recSizeRequired = uaoSize + Long.BYTES + currentRecLen;
+            if (leftLenInCurPage < recSizeRequired) {
                 allocatePMemPage();
+                pageBaseOffset = currentPMemPage.getBaseOffset();
+                currentOffset = pageBaseOffset + currentOffsetInPage;
+                sorted_logger.info("Allocate PMem page since last page is full. ");
             }
-            sorted_logger.info("write record to PMem: offset {}, current RecLen {}, prefix {}",currentOffset, currentRecLen, currentPrefix);
             Platform.putInt(
                     null,
                     currentOffset,
                     currentRecLen);
-            int uaoSize = UnsafeAlignedOffset.getUaoSize();
             currentOffset += uaoSize;
             Platform.putLong(
                     null,
@@ -86,6 +90,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             pageNumOfRecMap.put(currentPMemPage, currentNumOfRecordsInPage);
             numRecords ++;
         }
+        sorted_logger.info("sortedIterator.getNumRecords(): {} ; records written: {}",sortedIterator.getNumRecords(), numRecords);
     }
 
     protected MemoryBlock allocatePMemPage(){
