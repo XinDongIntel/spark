@@ -240,7 +240,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       //Todo: the logic here requires more extended memory than needed for option 3.
       // Will change options3 implementation to acquire memory when needed and support
       // fallback to spill to disk in case of pMem is not sufficient.
-      long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
+      /*long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
       if (memoryGot == required) {
         spillToPMem((UnsafeInMemorySorter.SortedIterator)sortedIterator, writeMetrics);
       } else {
@@ -248,7 +248,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         taskMemoryManager.releaseExtendedMemory(memoryGot);
         //fallback to use disk spill writer
         spillToDisk(sortedIterator, writeMetrics);
-      }
+      }*/
+      spillToPMem((UnsafeInMemorySorter.SortedIterator)sortedIterator, writeMetrics);
     } else {
       spillToDisk(sortedIterator, writeMetrics);
     }
@@ -612,7 +613,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         // Will change options3 implementation to acquire memory when needed and support
         // fallback to spill to disk in case of pMem is not sufficient.
         if (spillToPMemEnabled) {
-          long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
+          /*long memoryGot = taskMemoryManager.acquireExtendedMemory(required);
           if (memoryGot == required && upstream instanceof UnsafeInMemorySorter.SortedIterator) {
             UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator)upstream, writeMetrics);
             nextUpstream = spillWriter.getSpillReader();
@@ -620,6 +621,15 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
             // for acquired but not used memory, just release it.
             taskMemoryManager.releaseExtendedMemory(memoryGot);
             // fallback to use disk spill writer
+            UnsafeInMemorySorter.SortedIterator inMemIterator =
+                    ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
+            UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator, writeMetrics);
+            nextUpstream = spillWriter.getReader(serializerManager, taskContext.taskMetrics());
+          }*/
+          if (upstream instanceof UnsafeInMemorySorter.SortedIterator) {
+            UnsafeSorterPMemSpillWriter spillWriter = spillToPMem((UnsafeInMemorySorter.SortedIterator)upstream, writeMetrics);
+            nextUpstream = spillWriter.getSpillReader();
+          } else {
             UnsafeInMemorySorter.SortedIterator inMemIterator =
                     ((UnsafeInMemorySorter.SortedIterator) upstream).clone();
             UnsafeSorterSpillWriter spillWriter = spillToDisk(inMemIterator, writeMetrics);

@@ -413,6 +413,7 @@ public class TaskMemoryManager {
     // page has been inappropriately directly freed without calling TMM.freePage().
     page.pageNumber = MemoryBlock.FREED_IN_TMM_PAGE_NUMBER;
     if (page.isExtendedMemory) {
+      logger.info("Free PMemPage {}", page.getBaseOffset());
       memoryManager.extendedMemoryAllocator().free(page);
       releaseExtendedMemory(pageSize, consumer);
     } else {

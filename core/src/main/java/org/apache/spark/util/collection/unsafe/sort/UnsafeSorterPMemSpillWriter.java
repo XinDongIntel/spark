@@ -57,7 +57,6 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
     protected void freeAllPMemPages() {
         for (MemoryBlock page : allocatedPMemPages) {
             taskMemoryManager.freePage(page, externalSorter);
-            logger.info("free PMem Page:{}",page.getBaseOffset());
         }
         allocatedPMemPages.clear();
     }

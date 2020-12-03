@@ -95,6 +95,11 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
 
     protected MemoryBlock allocatePMemPage(){
         currentPMemPage = super.allocatePMemPage();
+        if (currentPMemPage == null){
+            //todo: when PMem page can't be allocated,we need to fallback to write disk.Currently we
+            // just simply throw an OutOfMemoryError out ,will change it later.
+            throw new OutOfMemoryError("PMEM page allocation failed for SortedPMemPageSpillWriter.");
+        }
         currentOffsetInPage = 0;
         currentNumOfRecordsInPage = 0;
         return currentPMemPage;
