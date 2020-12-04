@@ -19,7 +19,6 @@ package org.apache.spark.util.collection.unsafe.sort;
 
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
-import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.UnsafeAlignedOffset;
 import org.apache.spark.unsafe.memory.MemoryBlock;
@@ -33,86 +32,137 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     private MemoryBlock currentPMemPage = null;
     private long currentOffsetInPage = 0L;
     private int currentNumOfRecordsInPage = 0;
-    private int currentRecLen = 0;
-    private long currentPrefix = 0L;
     //Page -> record number map
     private LinkedHashMap<MemoryBlock,Integer> pageNumOfRecMap = new LinkedHashMap<MemoryBlock,Integer>();
     private int numRecords = 0;
+    private int numRecordsOnPMem = 0;
+
+    private BlockManager blockManager;
+    private SerializerManager serializerManager;
+    private int fileBufferSize = 0;
+    private UnsafeSorterSpillWriter diskSpillWriter;
 
     public SortedPMemPageSpillWriter(
             UnsafeExternalSorter externalSorter,
             SortedIteratorForSpills sortedIterator,
+            SerializerManager serializerManager,
+            BlockManager blockManager,
+            int fileBufferSize,
             ShuffleWriteMetrics writeMetrics,
             TaskMetrics taskMetrics) {
         super(externalSorter, sortedIterator, writeMetrics, taskMetrics);
+        this.blockManager = blockManager;
+        this.serializerManager = serializerManager;
+        this.fileBufferSize = fileBufferSize;
     }
 
-    //This write will write all spilled record in physically sorted PMem page.
     @Override
     public void write() throws IOException {
+        boolean allBeWritten = writeToPMem();
+        if (!allBeWritten) {
+            writeToDisk();
+        }
+    }
+
+    /**
+     * @return if all records have been write to PMem, return true. Otherwise, return false.
+     * @throws IOException
+     */
+    private boolean writeToPMem() throws IOException {
         while (sortedIterator.hasNext()) {
             sortedIterator.loadNext();
             final Object baseObject = sortedIterator.getBaseObject();
             final long baseOffset = sortedIterator.getBaseOffset();
-            currentRecLen = sortedIterator.getRecordLength();
-            currentPrefix = sortedIterator.getKeyPrefix();
-            if (allocatedPMemPages.isEmpty()) {
-                MemoryBlock page = allocatePMemPage();
+            int curRecLen = sortedIterator.getRecordLength();
+            long curPrefix = sortedIterator.getKeyPrefix();
+            if (needNewPMemPage(curRecLen)) {
+                currentPMemPage = allocatePMemPage();
             }
-            long pageBaseOffset = currentPMemPage.getBaseOffset();
-            long currentOffset = pageBaseOffset + currentOffsetInPage;
-            long leftLenInCurPage = currentPMemPage.size() - currentOffset;
-            int uaoSize = UnsafeAlignedOffset.getUaoSize();
-            long recSizeRequired = uaoSize + Long.BYTES + currentRecLen;
-            if (leftLenInCurPage < recSizeRequired) {
-                allocatePMemPage();
-                pageBaseOffset = currentPMemPage.getBaseOffset();
-                currentOffset = pageBaseOffset + currentOffsetInPage;
-                sorted_logger.info("Allocate PMem page since last page is full. ");
+            if (currentPMemPage != null) {
+                long pageBaseOffset = currentPMemPage.getBaseOffset();
+                long curPMemOffset = pageBaseOffset + currentOffsetInPage;
+                writeRecordToPMem(baseObject, baseOffset, curRecLen, curPrefix, curPMemOffset);
+                currentNumOfRecordsInPage ++;
+                pageNumOfRecMap.put(currentPMemPage, currentNumOfRecordsInPage);
+                numRecords ++;
+            } else {
+                //No more PMem space available, current loaded record can't be written to PMem.
+                return false;
             }
-            Platform.putInt(
-                    null,
-                    currentOffset,
-                    currentRecLen);
-            currentOffset += uaoSize;
-            Platform.putLong(
-                    null,
-                    currentOffset,
-                    currentPrefix);
-            currentOffset += Long.BYTES;
-            Platform.copyMemory(
-                    baseObject,
-                    baseOffset,
-                    null,
-                    currentOffset,
-                    currentRecLen);
-            currentNumOfRecordsInPage ++;
-            pageNumOfRecMap.put(currentPMemPage, currentNumOfRecordsInPage);
-            numRecords ++;
         }
-        sorted_logger.info("sortedIterator.getNumRecords(): {} ; records written: {}",sortedIterator.getNumRecords(), numRecords);
+        //All records have been written to PMem.
+        return true;
     }
 
-    protected MemoryBlock allocatePMemPage(){
-        currentPMemPage = super.allocatePMemPage();
-        if (currentPMemPage == null){
-            //todo: when PMem page can't be allocated,we need to fallback to write disk.Currently we
-            // just simply throw an OutOfMemoryError out ,will change it later.
-            throw new OutOfMemoryError("PMEM page allocation failed for SortedPMemPageSpillWriter.");
+    private void writeToDisk() throws IOException{
+        if (diskSpillWriter == null) {
+            diskSpillWriter = new UnsafeSorterSpillWriter(
+                    blockManager,
+                    fileBufferSize,
+                    sortedIterator,
+                   sortedIterator.getNumRecords() - numRecordsOnPMem,
+                    serializerManager,
+                    writeMetrics,
+                    taskMetrics);
         }
+        diskSpillWriter.write(true);
+    }
+    
+    private boolean needNewPMemPage(int nextRecLen) {
+        if (allocatedPMemPages.isEmpty()) {
+            return true;
+        }
+        else {
+            long pageBaseOffset = currentPMemPage.getBaseOffset();
+            long leftLenInCurPage = currentPMemPage.size() - currentOffsetInPage;
+            int uaoSize = UnsafeAlignedOffset.getUaoSize();
+            long recSizeRequired = uaoSize + Long.BYTES + nextRecLen;
+            if (leftLenInCurPage < recSizeRequired) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void writeRecordToPMem(Object baseObject, long baseOffset, int recLength, long prefix, long pMemOffset){
+        Platform.putInt(
+                null,
+                pMemOffset,
+                recLength);
+        int uaoSize = UnsafeAlignedOffset.getUaoSize();
+        long currentOffset = pMemOffset + uaoSize;
+        Platform.putLong(
+                null,
+                currentOffset,
+                prefix);
+        currentOffset += Long.BYTES;
+        Platform.copyMemory(
+                baseObject,
+                baseOffset,
+                null,
+                currentOffset,
+                recLength);
+        numRecordsOnPMem ++;
+    }
+
+    protected MemoryBlock allocatePMemPage() throws IOException{
+        currentPMemPage = super.allocatePMemPage();
         currentOffsetInPage = 0;
         currentNumOfRecordsInPage = 0;
         return currentPMemPage;
     }
 
     @Override
-    public UnsafeSorterIterator getSpillReader() {
+    public UnsafeSorterIterator getSpillReader() throws IOException {
         return new SortedPMemPageSpillReader();
     }
 
     @Override
     public void clearAll() {
         freeAllPMemPages();
+        if (diskSpillWriter != null) {
+            diskSpillWriter.clearAll();
+        }
     }
 
     private class SortedPMemPageSpillReader extends UnsafeSorterIterator {
@@ -122,19 +172,33 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         private int curOffsetInPage = 0;
         private int curNumOfRecInPage = 0;
         private int curNumOfRec = 0;
-        private long curRecordAddress = 0;
+        private Object baseObject = null;
+        private long baseOffset = 0;
         private int recordLength;
         private long keyPrefix;
+        private UnsafeSorterIterator diskSpillReader;
+        private int numRecordsOnDisk = 0;
 
-        public SortedPMemPageSpillReader() {
+        public SortedPMemPageSpillReader() throws IOException{
+            if (diskSpillReader != null) {
+                diskSpillReader = diskSpillWriter.getSpillReader();
+                numRecordsOnDisk = diskSpillReader.getNumRecords();
+            }
         }
         @Override
         public boolean hasNext() {
-            return curNumOfRec < numRecords;
+            return curNumOfRec < numRecordsOnPMem + numRecordsOnDisk;
         }
-
         @Override
         public void loadNext() throws IOException {
+            if(curNumOfRec < numRecordsOnPMem) {
+                loadNextOnPMem();
+            } else {
+                loadNextOnDisk();
+            }
+        }
+
+        private void loadNextOnPMem() throws IOException {
             if (curPage == null || curNumOfRecInPage >= pageNumOfRecMap.get(curPage)) {
                 moveToNextPMemPage();
             }
@@ -145,9 +209,21 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             keyPrefix = Platform.getLong(null, curPageBaseOffset + curOffsetInPage);
             sorted_reader_logger.info("Load record from PMem keyPrefix :{}", keyPrefix);
             curOffsetInPage += Long.BYTES;
-            curRecordAddress = curPageBaseOffset + curOffsetInPage;
+            baseOffset = curPageBaseOffset + curOffsetInPage;
+            curOffsetInPage += recordLength;
             curNumOfRecInPage ++;
             curNumOfRec ++;
+        }
+
+        private void loadNextOnDisk() throws IOException {
+            if (diskSpillReader != null) {
+                diskSpillReader.loadNext();
+                baseObject = diskSpillReader.getBaseObject();
+                baseOffset = diskSpillReader.getBaseOffset();
+                recordLength = diskSpillReader.getRecordLength();
+                keyPrefix = diskSpillReader.getKeyPrefix();
+                curNumOfRec ++;
+            }
         }
 
         private void moveToNextPMemPage() {
@@ -160,12 +236,12 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
 
         @Override
         public Object getBaseObject() {
-            return null;
+            return baseObject;
         }
 
         @Override
         public long getBaseOffset() {
-            return curRecordAddress;
+            return baseOffset;
         }
 
         @Override
@@ -180,7 +256,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
 
         @Override
         public int getNumRecords() {
-            return numRecords;
+            return numRecordsOnPMem + numRecordsOnDisk;
         }
     }
 }

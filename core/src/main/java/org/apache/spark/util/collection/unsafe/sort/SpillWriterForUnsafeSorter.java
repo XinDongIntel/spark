@@ -24,7 +24,7 @@ public interface SpillWriterForUnsafeSorter {
     public void write() throws IOException;
 
     //get reader for the spill maintained by this writer.
-    public UnsafeSorterIterator getSpillReader();
+    public UnsafeSorterIterator getSpillReader() throws IOException;
 
     //clear all acquired resource after read is done.
     public void clearAll();

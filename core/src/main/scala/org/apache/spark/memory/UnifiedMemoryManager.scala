@@ -155,7 +155,7 @@ private[spark] class UnifiedMemoryManager(
    * @return
    */
   override def acquireExtendedMemory(numBytes: Long, taskAttemptId: Long): Long = synchronized {
-    Long memoryFree = extendedMemoryPool.memoryFree;
+    val memoryFree = extendedMemoryPool.memoryFree;
     if (numBytes > memoryFree) {
       logInfo(s"PMEM allocation failed: require $numBytes bytes but only $memoryFree left.")
       return 0;

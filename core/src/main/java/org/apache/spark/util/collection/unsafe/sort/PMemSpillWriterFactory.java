@@ -20,20 +20,52 @@ package org.apache.spark.util.collection.unsafe.sort;
 import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
+import org.apache.spark.serializer.SerializerManager;
+import org.apache.spark.storage.BlockManager;
+
+import java.io.IOException;
 
 public class PMemSpillWriterFactory {
-    public static UnsafeSorterPMemSpillWriter getSpillWriter(
+    public static SpillWriterForUnsafeSorter getSpillWriter(
             PMemSpillWriterType writerType,
             UnsafeExternalSorter externalSorter,
-            SortedIteratorForSpills sortedIterator,
+            UnsafeSorterIterator sortedIterator,
+            SerializerManager serializerManager,
+            BlockManager blockManager,
+            int fileBufferSize,
             ShuffleWriteMetrics writeMetrics,
-            TaskMetrics taskMetrics) {
-        if (writerType == PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM) {
-            return new SortedPMemPageSpillWriter(externalSorter, sortedIterator, writeMetrics, taskMetrics);
-        } else if (writerType == PMemSpillWriterType.MEM_COPY_ALL_DATA_PAGES_TO_PMEM_WITHLONGARRAY){
-            new PMemWriter(externalSorter, sortedIterator, writeMetrics, taskMetrics);
+            TaskMetrics taskMetrics,
+            boolean spillToPMEMEnabled) throws IOException {
+        if(spillToPMEMEnabled && sortedIterator instanceof UnsafeInMemorySorter.SortedIterator) {
+            SortedIteratorForSpills sortedSpillIte = SortedIteratorForSpills.createFromExistingSorterIte(
+                    (UnsafeInMemorySorter.SortedIterator)sortedIterator,
+                    externalSorter.getInMemSorter());
+            if (writerType == PMemSpillWriterType.WRITE_SORTED_RECORDS_TO_PMEM) {
+                return new SortedPMemPageSpillWriter(
+                        externalSorter,
+                        sortedSpillIte,
+                        serializerManager,
+                        blockManager,
+                        fileBufferSize,
+                        writeMetrics,
+                        taskMetrics);
+            } else if (writerType == PMemSpillWriterType.MEM_COPY_ALL_DATA_PAGES_TO_PMEM_WITHLONGARRAY){
+                new PMemWriter(
+                        externalSorter,
+                        sortedSpillIte,
+                        writeMetrics,
+                        taskMetrics);
+            }
+        } else {
+            return new UnsafeSorterSpillWriter(
+                    blockManager,
+                    fileBufferSize,
+                    sortedIterator,
+                    sortedIterator.getNumRecords(),
+                    serializerManager,
+                    writeMetrics,
+                    taskMetrics);
         }
-        //Todo: add other types of pmem spill writer here
         return null;
     }
 }

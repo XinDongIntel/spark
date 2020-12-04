@@ -238,10 +238,10 @@ public class TaskMemoryManager {
    */
   public long acquireExtendedMemory(long required, MemoryConsumer consumer) {
     assert(required >= 0);
-    logger.info("Task {} acquire {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(required));
+    logger.debug("Task {} acquire {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(required));
     synchronized (this) {
       long got = memoryManager.acquireExtendedMemory(required, taskAttemptId);
-      logger.info("Task {} got {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(got));
+      logger.debug("Task {} got {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(got));
       // The MemoryConsumer which acquired extended memory should be traced in TaskMemoryManagr.
       // Not very sure about whether it should be added to the consumers here. Maybe should maintain
       // another list for consumers which use extended memory.
@@ -260,7 +260,7 @@ public class TaskMemoryManager {
 
   public long acquireExtendedMemory(long required) {
     assert(required >= 0);
-    logger.info("Task {} acquire {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(required));
+    logger.debug("Task {} acquire {} bytes PMem memory.", taskAttemptId, Utils.bytesToString(required));
     synchronized (this) {
       long got = memoryManager.acquireExtendedMemory(required, taskAttemptId);
       return got;
@@ -413,7 +413,6 @@ public class TaskMemoryManager {
     // page has been inappropriately directly freed without calling TMM.freePage().
     page.pageNumber = MemoryBlock.FREED_IN_TMM_PAGE_NUMBER;
     if (page.isExtendedMemory) {
-      logger.info("Free PMemPage {}", page.getBaseOffset());
       memoryManager.extendedMemoryAllocator().free(page);
       releaseExtendedMemory(pageSize, consumer);
     } else {
