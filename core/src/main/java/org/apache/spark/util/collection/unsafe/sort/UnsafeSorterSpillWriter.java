@@ -94,6 +94,23 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
     writer.write(writeBuffer, 0, 4);
   }
 
+  public UnsafeSorterSpillWriter(
+          BlockManager blockManager,
+          int fileBufferSize,
+          UnsafeSorterIterator inMemIterator,
+          SerializerManager serializerManager,
+          ShuffleWriteMetrics writeMetrics,
+          TaskMetrics taskMetrics)  throws IOException {
+    new UnsafeSorterSpillWriter(
+            blockManager,
+            fileBufferSize,
+            inMemIterator,
+            inMemIterator.getNumRecords(),
+            serializerManager,
+            writeMetrics,
+            taskMetrics);
+  }
+
   // Based on DataOutputStream.writeLong.
   private void writeLongToBuffer(long v, int offset) {
     writeBuffer[offset + 0] = (byte)(v >>> 56);
@@ -122,7 +139,7 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
    * @param recordLength the length of the record.
    * @param keyPrefix a sort key prefix
    */
-  private void write(
+  public void write(
       Object baseObject,
       long baseOffset,
       int recordLength,
@@ -192,6 +209,11 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
       write(baseObject, baseOffset, recordLength, inMemIterator.getKeyPrefix());
     }
     close();
+  }
+
+  public UnsafeSorterSpillReader getReader(SerializerManager serializerManager,
+                                           TaskMetrics taskMetrics) throws IOException {
+    return new UnsafeSorterSpillReader(serializerManager, taskMetrics, file, blockId);
   }
 
   @Override

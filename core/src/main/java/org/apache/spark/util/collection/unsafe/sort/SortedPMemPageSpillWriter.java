@@ -22,6 +22,8 @@ import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.UnsafeAlignedOffset;
 import org.apache.spark.unsafe.memory.MemoryBlock;
+import org.apache.spark.storage.BlockManager;
+import org.apache.spark.serializer.SerializerManager;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import org.slf4j.Logger;
