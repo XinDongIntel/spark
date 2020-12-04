@@ -260,6 +260,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         sortedIterator,
         serializerManager,
         blockManager,
+        fileBufferSizeBytes,
         writeMetrics,
         taskContext.taskMetrics(),
         spillToPMemEnabled);

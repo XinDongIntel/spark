@@ -97,6 +97,21 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
   public UnsafeSorterSpillWriter(
           BlockManager blockManager,
           int fileBufferSize,
+          ShuffleWriteMetrics writeMetrics,
+          int numRecordsToWrite) throws IOException {
+    new UnsafeSorterSpillWriter(
+            blockManager,
+            fileBufferSize,
+           null,
+            numRecordsToWrite,
+           null,
+            writeMetrics,
+           null);
+  }
+
+  public UnsafeSorterSpillWriter(
+          BlockManager blockManager,
+          int fileBufferSize,
           UnsafeSorterIterator inMemIterator,
           SerializerManager serializerManager,
           ShuffleWriteMetrics writeMetrics,
@@ -195,20 +210,22 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
   }
 
   public void write(boolean alreadyLoad) throws IOException {
-    if (alreadyLoad) {
-      final Object baseObject = inMemIterator.getBaseObject();
-      final long baseOffset = inMemIterator.getBaseOffset();
-      final int recordLength = inMemIterator.getRecordLength();
-      write(baseObject, baseOffset, recordLength, inMemIterator.getKeyPrefix());
-    }
-    while (inMemIterator.hasNext()) {
-      inMemIterator.loadNext();
-      final Object baseObject = inMemIterator.getBaseObject();
-      final long baseOffset = inMemIterator.getBaseOffset();
-      final int recordLength = inMemIterator.getRecordLength();
-      write(baseObject, baseOffset, recordLength, inMemIterator.getKeyPrefix());
-    }
-    close();
+   if (inMemIterator != null) {
+     if (alreadyLoad) {
+       final Object baseObject = inMemIterator.getBaseObject();
+       final long baseOffset = inMemIterator.getBaseOffset();
+       final int recordLength = inMemIterator.getRecordLength();
+       write(baseObject, baseOffset, recordLength, inMemIterator.getKeyPrefix());
+     }
+     while (inMemIterator.hasNext()) {
+       inMemIterator.loadNext();
+       final Object baseObject = inMemIterator.getBaseObject();
+       final long baseOffset = inMemIterator.getBaseOffset();
+       final int recordLength = inMemIterator.getRecordLength();
+       write(baseObject, baseOffset, recordLength, inMemIterator.getKeyPrefix());
+     }
+     close();
+   }
   }
 
   public UnsafeSorterSpillReader getReader(SerializerManager serializerManager,

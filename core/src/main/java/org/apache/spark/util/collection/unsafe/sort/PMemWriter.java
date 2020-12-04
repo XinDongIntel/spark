@@ -105,4 +105,10 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
         }
         this.sortedArray = sortedArray;
     }
+
+    @Override
+    public int recordsSpilled() {
+        //todo: implements recordsSpill here.
+        return 0;
+    }
 }
