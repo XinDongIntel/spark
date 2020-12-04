@@ -167,6 +167,14 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         }
     }
 
+    public int recordsSpilled() {
+        int recordsSpilledOnDisk = 0;
+        if (diskSpillWriter != null) {
+            recordsSpilledOnDisk = diskSpillWriter.recordsSpilled();
+        }
+        return numRecordsOnPMem + recordsSpilledOnDisk;
+    }
+
     private class SortedPMemPageSpillReader extends UnsafeSorterIterator {
         private final Logger sorted_reader_logger = LoggerFactory.getLogger(SortedPMemPageSpillReader.class);
         private MemoryBlock curPage = null;

@@ -662,7 +662,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       int i = 0;
       for (SpillWriterForUnsafeSorter spillWriter : spillWriters) {
         if (i + spillWriter.recordsSpilled() > startIndex) {
-          UnsafeSorterIterator iter = spillWriter.getReader();
+          UnsafeSorterIterator iter = spillWriter.getSpillReader();
           moveOver(iter, startIndex - i);
           queue.add(iter);
         }

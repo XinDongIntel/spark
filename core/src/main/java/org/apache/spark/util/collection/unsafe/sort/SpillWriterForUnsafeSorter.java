@@ -28,4 +28,7 @@ public interface SpillWriterForUnsafeSorter {
 
     //clear all acquired resource after read is done.
     public void clearAll();
+
+    //get spilled record number.
+    public int recordsSpilled();
 }
