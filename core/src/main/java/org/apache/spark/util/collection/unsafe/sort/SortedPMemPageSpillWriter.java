@@ -150,6 +150,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
                 currentOffset,
                 recLength);
         numRecordsOnPMem ++;
+        currentOffsetInPage += uaoSize + Long.BYTES + recLength;
     }
 
     protected MemoryBlock allocatePMemPage() throws IOException{
@@ -195,6 +196,16 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         }
     }
 
+    private void printAllPMemPage(int printedRecNumInPage){
+        for (MemoryBlock memBlk : pageNumOfRecMap.keySet()) {
+            sorted_logger.info("Print first {} records on pmem page {}.There are {} records on it." ,
+                    printedRecNumInPage,
+                    memBlk.getBaseOffset(),
+                    pageNumOfRecMap.get(memBlk));
+            printRecordsOnPMemPage(memBlk, printedRecNumInPage);
+        }
+    }
+    
     private class SortedPMemPageSpillReader extends UnsafeSorterIterator {
         private final Logger sorted_reader_logger = LoggerFactory.getLogger(SortedPMemPageSpillReader.class);
         private MemoryBlock curPage = null;
