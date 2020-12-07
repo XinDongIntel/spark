@@ -17,6 +17,7 @@
 
 package org.apache.spark.util.collection.unsafe.sort;
 
+import org.apache.batik.util.Platform;
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.unsafe.Platform;
@@ -62,6 +63,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     public void write() throws IOException {
         boolean allBeWritten = writeToPMem();
         if (!allBeWritten) {
+            sorted_logger.info("No more PMEM space available. Write left spills to disk");
             writeToDisk();
         }
     }
@@ -78,6 +80,10 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             int curRecLen = sortedIterator.getRecordLength();
             long curPrefix = sortedIterator.getKeyPrefix();
             if (needNewPMemPage(curRecLen)) {
+                if (currentPMemPage != null){
+                    sorted_logger.info("print records before write next page").
+                    printRecordsOnPMemPage(currentPMemPage,200);
+                }
                 currentPMemPage = allocatePMemPage();
             }
             if (currentPMemPage != null) {
@@ -175,6 +181,21 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         return numRecordsOnPMem + recordsSpilledOnDisk;
     }
 
+    private static void printRecordsOnPMemPage(MemoryBlock page, int printedRecNum){
+        int recOnPage = pageNumOfRecMap.get(memBlk);
+        sorted_logger.info("read PMem page. page offset {}. numOfRec {}.",page.getBaseOffset(), recOnPage );
+        int offsetInPage = 0;
+        for (int idx = 0; idx < recOnPage && idx < printedRecNum; idx ++ ){
+            int recLen = UnsafeAlignedOffset.getSize(null, page.getBaseOffset() + offsetInPage);
+            sorted_logger.info("read from PMem page {} ,offset in page {}.", page.getBaseOffset(), offsetInPage);
+            offsetInPage += UnsafeAlignedOffset.getUaoSize();
+            long pfix = Platform.getLong(null, curPageBaseOffset + offsetInPage);
+            offsetInPage += Long.BYTES;
+            offsetInPage += recLen;
+            sorted_logger.info("record on PMem: recLen {}, pfix {}", recLen, pfix);
+        }
+    }
+
     private class SortedPMemPageSpillReader extends UnsafeSorterIterator {
         private final Logger sorted_reader_logger = LoggerFactory.getLogger(SortedPMemPageSpillReader.class);
         private MemoryBlock curPage = null;
@@ -190,9 +211,14 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         private int numRecordsOnDisk = 0;
 
         public SortedPMemPageSpillReader() throws IOException{
-            if (diskSpillReader != null) {
+            if (diskSpillWriter != null) {
                 diskSpillReader = diskSpillWriter.getSpillReader();
                 numRecordsOnDisk = diskSpillReader.getNumRecords();
+            }
+            for (MemoryBlock memBlk : pageNumOfRecMap.keySet()) {
+                sorted_reader_logger.info("will read pmem page {}.There are {} records on it." ,
+                                          memBlk.getBaseOffset(),
+                                          pageNumOfRecMap.get(memBlk));
             }
         }
         @Override
@@ -212,12 +238,13 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             if (curPage == null || curNumOfRecInPage >= pageNumOfRecMap.get(curPage)) {
                 moveToNextPMemPage();
             }
+            sorted_reader_logger.info("print pMempage in reader");
+            printRecordsOnPMemPage(curPage, 200);
             long curPageBaseOffset = curPage.getBaseOffset();
             recordLength = UnsafeAlignedOffset.getSize(null, curPageBaseOffset + curOffsetInPage);
-            sorted_reader_logger.info("Load record from PMem {} :rec length:{}", curPageBaseOffset, recordLength);
+ //           sorted_reader_logger.info("Load record from PMem page{} : offset in page {}: rec length:{}", curPageBaseOffset,curOffsetInPage, recordLength);
             curOffsetInPage += UnsafeAlignedOffset.getUaoSize();
             keyPrefix = Platform.getLong(null, curPageBaseOffset + curOffsetInPage);
-            sorted_reader_logger.info("Load record from PMem keyPrefix :{}", keyPrefix);
             curOffsetInPage += Long.BYTES;
             baseOffset = curPageBaseOffset + curOffsetInPage;
             curOffsetInPage += recordLength;
