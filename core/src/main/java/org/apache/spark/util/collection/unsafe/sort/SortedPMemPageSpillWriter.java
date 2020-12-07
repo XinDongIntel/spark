@@ -17,7 +17,6 @@
 
 package org.apache.spark.util.collection.unsafe.sort;
 
-import org.apache.batik.util.Platform;
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.unsafe.Platform;
@@ -81,7 +80,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             long curPrefix = sortedIterator.getKeyPrefix();
             if (needNewPMemPage(curRecLen)) {
                 if (currentPMemPage != null){
-                    sorted_logger.info("print records before write next page").
+                    sorted_logger.info("print records before write next page.");
                     printRecordsOnPMemPage(currentPMemPage,200);
                 }
                 currentPMemPage = allocatePMemPage();
@@ -181,15 +180,15 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         return numRecordsOnPMem + recordsSpilledOnDisk;
     }
 
-    private static void printRecordsOnPMemPage(MemoryBlock page, int printedRecNum){
-        int recOnPage = pageNumOfRecMap.get(memBlk);
+    private void printRecordsOnPMemPage(MemoryBlock page, int printedRecNum){
+        int recOnPage = pageNumOfRecMap.get(page);
         sorted_logger.info("read PMem page. page offset {}. numOfRec {}.",page.getBaseOffset(), recOnPage );
         int offsetInPage = 0;
         for (int idx = 0; idx < recOnPage && idx < printedRecNum; idx ++ ){
             int recLen = UnsafeAlignedOffset.getSize(null, page.getBaseOffset() + offsetInPage);
             sorted_logger.info("read from PMem page {} ,offset in page {}.", page.getBaseOffset(), offsetInPage);
             offsetInPage += UnsafeAlignedOffset.getUaoSize();
-            long pfix = Platform.getLong(null, curPageBaseOffset + offsetInPage);
+            long pfix = Platform.getLong(null, page.getBaseOffset() + offsetInPage);
             offsetInPage += Long.BYTES;
             offsetInPage += recLen;
             sorted_logger.info("record on PMem: recLen {}, pfix {}", recLen, pfix);

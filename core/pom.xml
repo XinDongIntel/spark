@@ -39,6 +39,8 @@
       <groupId>com.intel.oap</groupId>
       <artifactId>oap-common</artifactId>
       <version>0.9.0</version>
+      <scope>system</scope>
+      <systemPath>/root/.m2/repository/com/intel/oap/oap-common/0.9.0/oap-common-0.9.0.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>com.thoughtworks.paranamer</groupId>

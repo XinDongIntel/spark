@@ -58,9 +58,9 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
   // data through a byte array.
   private byte[] writeBuffer = new byte[diskWriteBufferSize];
 
-  private final File file;
-  private final BlockId blockId;
-  private final int numRecordsToWrite;
+  private File file = null;
+  private BlockId blockId = null;
+  private int numRecordsToWrite = 0;
   private DiskBlockObjectWriter writer;
   private int numRecordsSpilled = 0;
 
