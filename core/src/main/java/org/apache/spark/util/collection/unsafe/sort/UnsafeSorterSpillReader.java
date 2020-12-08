@@ -71,7 +71,6 @@ public final class UnsafeSorterSpillReader extends UnsafeSorterIterator implemen
     final boolean readAheadEnabled = SparkEnv.get() != null && (boolean)SparkEnv.get().conf().get(
         package$.MODULE$.UNSAFE_SORTER_SPILL_READ_AHEAD_ENABLED());
 
-    file.length();
     final InputStream bs =
         new NioBufferedFileInputStream(file, bufferSizeBytes);
     try {
