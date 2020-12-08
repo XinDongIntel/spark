@@ -162,4 +162,8 @@ public abstract class MemoryConsumer {
       got);
     // checkstyle.on: RegexpSinglelineJava
   }
+
+  public TaskMemoryManager getTaskMemoryManager() {
+    return taskMemoryManager;
+  }
 }
