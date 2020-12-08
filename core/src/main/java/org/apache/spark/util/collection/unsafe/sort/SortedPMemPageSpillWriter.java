@@ -79,10 +79,6 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             int curRecLen = sortedIterator.getRecordLength();
             long curPrefix = sortedIterator.getKeyPrefix();
             if (needNewPMemPage(curRecLen)) {
-                if (currentPMemPage != null){
-                    sorted_logger.info("print records before write next page.");
-                    printRecordsOnPMemPage(currentPMemPage,200);
-                }
                 currentPMemPage = allocatePMemPage();
             }
             if (currentPMemPage != null) {
@@ -181,31 +177,6 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         return numRecordsOnPMem + recordsSpilledOnDisk;
     }
 
-    private void printRecordsOnPMemPage(MemoryBlock page, int printedRecNum){
-        int recOnPage = pageNumOfRecMap.get(page);
-        sorted_logger.info("read PMem page. page offset {}. numOfRec {}.",page.getBaseOffset(), recOnPage );
-        int offsetInPage = 0;
-        for (int idx = 0; idx < recOnPage && idx < printedRecNum; idx ++ ){
-            int recLen = UnsafeAlignedOffset.getSize(null, page.getBaseOffset() + offsetInPage);
-            sorted_logger.info("read from PMem page {} ,offset in page {}.", page.getBaseOffset(), offsetInPage);
-            offsetInPage += UnsafeAlignedOffset.getUaoSize();
-            long pfix = Platform.getLong(null, page.getBaseOffset() + offsetInPage);
-            offsetInPage += Long.BYTES;
-            offsetInPage += recLen;
-            sorted_logger.info("record on PMem: recLen {}, pfix {}", recLen, pfix);
-        }
-    }
-
-    private void printAllPMemPage(int printedRecNumInPage){
-        for (MemoryBlock memBlk : pageNumOfRecMap.keySet()) {
-            sorted_logger.info("Print first {} records on pmem page {}.There are {} records on it." ,
-                    printedRecNumInPage,
-                    memBlk.getBaseOffset(),
-                    pageNumOfRecMap.get(memBlk));
-            printRecordsOnPMemPage(memBlk, printedRecNumInPage);
-        }
-    }
-    
     private class SortedPMemPageSpillReader extends UnsafeSorterIterator {
         private final Logger sorted_reader_logger = LoggerFactory.getLogger(SortedPMemPageSpillReader.class);
         private MemoryBlock curPage = null;
@@ -225,11 +196,6 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
                 diskSpillReader = diskSpillWriter.getSpillReader();
                 numRecordsOnDisk = diskSpillReader.getNumRecords();
             }
-            for (MemoryBlock memBlk : pageNumOfRecMap.keySet()) {
-                sorted_reader_logger.info("will read pmem page {}.There are {} records on it." ,
-                                          memBlk.getBaseOffset(),
-                                          pageNumOfRecMap.get(memBlk));
-            }
         }
         @Override
         public boolean hasNext() {
@@ -248,11 +214,8 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             if (curPage == null || curNumOfRecInPage >= pageNumOfRecMap.get(curPage)) {
                 moveToNextPMemPage();
             }
-            sorted_reader_logger.info("print pMempage in reader");
-            printRecordsOnPMemPage(curPage, 200);
             long curPageBaseOffset = curPage.getBaseOffset();
             recordLength = UnsafeAlignedOffset.getSize(null, curPageBaseOffset + curOffsetInPage);
- //           sorted_reader_logger.info("Load record from PMem page{} : offset in page {}: rec length:{}", curPageBaseOffset,curOffsetInPage, recordLength);
             curOffsetInPage += UnsafeAlignedOffset.getUaoSize();
             keyPrefix = Platform.getLong(null, curPageBaseOffset + curOffsetInPage);
             curOffsetInPage += Long.BYTES;
@@ -278,7 +241,6 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
             curPage = allocatedPMemPages.get(curPageIdx);
             curOffsetInPage = 0;
             curNumOfRecInPage = 0;
-            sorted_reader_logger.info("move to read next PMEM page {}", curPage.getBaseOffset());
         }
 
         @Override

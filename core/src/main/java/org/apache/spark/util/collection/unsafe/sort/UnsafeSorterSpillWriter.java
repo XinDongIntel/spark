@@ -91,6 +91,7 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
       blockId, file, DummySerializerInstance.INSTANCE, fileBufferSize, writeMetrics);
     // Write the number of records
     writeIntToBuffer(numRecordsToWrite, 0);
+    logger.info("Number of records written to file: {}", numRecordsToWrite);
     writer.write(writeBuffer, 0, 4);
   }
 
@@ -187,6 +188,7 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
       writer.write(writeBuffer, 0, (diskWriteBufferSize - freeSpaceInWriteBuffer));
     }
     writer.recordWritten();
+    logger.info("record written to file: base offset {}, record length {}, keyPrefix {}.", baseOffset, recordLength, keyPrefix);
   }
 
   public void close() throws IOException {
@@ -194,6 +196,7 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
     writer.close();
     writer = null;
     writeBuffer = null;
+    logger.info("Spill file closed. file length {}", file.length());
   }
 
   public File getFile() {
