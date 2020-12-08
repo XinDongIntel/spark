@@ -228,6 +228,10 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
        write(baseObject, baseOffset, recordLength, inMemIterator.getKeyPrefix());
      }
      close();
+     if (numRecordsSpilled != numRecordsSpilled){
+       logger.info("number of records to write:{}, records spilled {}", numRecordsToWrite, numRecordsSpilled);
+     }
+
    }
   }
 

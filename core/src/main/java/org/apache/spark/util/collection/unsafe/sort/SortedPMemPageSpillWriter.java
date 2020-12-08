@@ -194,7 +194,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         public SortedPMemPageSpillReader() throws IOException{
             if (diskSpillWriter != null) {
                 diskSpillReader = diskSpillWriter.getSpillReader();
-                numRecordsOnDisk = diskSpillReader.getNumRecords();
+                numRecordsOnDisk = diskSpillWriter.recordsSpilled();
             }
         }
         @Override
