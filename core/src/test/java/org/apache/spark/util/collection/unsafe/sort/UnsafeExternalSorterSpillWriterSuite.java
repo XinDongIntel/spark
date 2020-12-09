@@ -18,6 +18,7 @@
 package org.apache.spark.util.collection.unsafe.sort;
 
 import org.apache.spark.api.java.function.package$;
+import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,10 +30,11 @@ public class UnsafeExternalSorterSpillWriterSuite extends UnsafeExternalSorterSu
             insertNumber(sorter, i);
         }
         try {
+            ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
             UnsafeInMemorySorter inMemSorter = sorter.getInMemSorter();
             UnsafeSorterIterator sortedIte = inMemSorter.getSortedIterator();
             if (sortedIte instanceof UnsafeInMemorySorter.SortedIterator) {
-                SpillWriterForUnsafeSorter pmemWriter = sorter.spillWithWriter(sortedIte, null);
+                SpillWriterForUnsafeSorter pmemWriter = sorter.spillWithWriter(sortedIte, sortedIte.getNumRecords(),null);
                 UnsafeSorterIterator pmemReader = pmemWriter.getSpillReader();
                 verifyIntIterator(pmemReader, 0, 100);
             }
