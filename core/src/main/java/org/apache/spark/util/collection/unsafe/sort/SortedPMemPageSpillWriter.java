@@ -99,22 +99,22 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     }
 
     private void writeToDisk() throws IOException{
-        int numOfRecToWrite = numberOfRecordsToWritten - numRecordsOnPMem;
+        int numOfRecLeft = numberOfRecordsToWritten - numRecordsOnPMem;
         if (diskSpillWriter == null) {
             diskSpillWriter = new UnsafeSorterSpillWriter(
                     blockManager,
                     fileBufferSize,
                     sortedIterator,
-                    numOfRecToWrite,
+                    numOfRecLeft,
                     serializerManager,
                     writeMetrics,
                     taskMetrics);
         }
         diskSpillWriter.write(true);
-        sorted_logger.info("Number of records {}; Number of records written to PMem {}; still {} records left, will write to disk.",
+        sorted_logger.info("Num of rec {}; Num of rec written to PMem {}; still {} records left; num of rec written to disk {}.",
                 sortedIterator.getNumRecords(),
                 numRecordsOnPMem,
-                numOfRecToWrite,
+                numOfRecLeft,
                 diskSpillWriter.recordsSpilled());
     }
     
