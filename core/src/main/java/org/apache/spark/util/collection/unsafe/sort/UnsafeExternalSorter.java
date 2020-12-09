@@ -233,8 +233,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     long duration;
     // firstly try to spill to PMem if spark.memory.spill.pmem.enabled set to true
     long required = getMemoryUsage();
-    //FIXME handle this at SpillWriter
-    spillWithWriter(sortedIterator,writeMetrics);
+
+    spillWithWriter(sortedIterator, sortedIterator.getNumRecords(), writeMetrics);
     duration = System.nanoTime() - startTime;
     spillSize += freeMemory();
     inMemSorter.reset();
@@ -251,13 +251,14 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     return spillSize;
   }
   //Todo: It's confusing to pass in ShuffleWriteMetrics here. Will reconsider and fix it later
-  public SpillWriterForUnsafeSorter spillWithWriter(UnsafeSorterIterator sortedIterator, ShuffleWriteMetrics writeMetrics) throws IOException {
+  public SpillWriterForUnsafeSorter spillWithWriter(UnsafeSorterIterator sortedIterator, int numberOfRecordsToWritten, ShuffleWriteMetrics writeMetrics) throws IOException {
     PMemSpillWriterType writerType = PMemSpillWriterType.valueOf(spillWriterType);
     logger.info("PMemSpillWriterType:{}",writerType.toString());
     final SpillWriterForUnsafeSorter spillWriter = PMemSpillWriterFactory.getSpillWriter(
         writerType,
        this,
         sortedIterator,
+        numberOfRecordsToWritten,
         serializerManager,
         blockManager,
         fileBufferSizeBytes,
@@ -548,7 +549,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         long required = getMemoryUsage();
         long startTime = System.nanoTime();
         long released = 0L;
-        SpillWriterForUnsafeSorter spillWriter = spillWithWriter(upstream, writeMetrics);
+        SpillWriterForUnsafeSorter spillWriter = spillWithWriter(upstream, numRecords, writeMetrics);
         nextUpstream = spillWriter.getSpillReader();
 
         released += inMemSorter.getMemoryUsage();

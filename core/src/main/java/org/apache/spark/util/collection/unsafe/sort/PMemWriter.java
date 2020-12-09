@@ -40,9 +40,10 @@ public final class PMemWriter extends UnsafeSorterPMemSpillWriter {
     public PMemWriter(
             UnsafeExternalSorter externalSorter,
             SortedIteratorForSpills sortedIterator,
+            int numRecordsToWritten,
             ShuffleWriteMetrics writeMetrics,
             TaskMetrics taskMetrics) {
-        super(externalSorter, sortedIterator, writeMetrics, taskMetrics);
+        super(externalSorter, sortedIterator, numRecordsToWritten, writeMetrics, taskMetrics);
         this.numRecordsWritten = sortedIterator.getNumRecords();
         this.allocatedDramPages = externalSorter.getAllocatedPages();
         this.sortedArray = sortedIterator.getLongArray();

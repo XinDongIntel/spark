@@ -113,7 +113,6 @@ public class SortedIteratorForSpills extends UnsafeSorterIterator {
             throw new IllegalArgumentException("Can't point to the middle of a record.");
         }
         position = pos;
-        loadPosition();
     }
 
     @Override

@@ -47,12 +47,13 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     public SortedPMemPageSpillWriter(
             UnsafeExternalSorter externalSorter,
             SortedIteratorForSpills sortedIterator,
+            int numberOfRecordsToWritten,
             SerializerManager serializerManager,
             BlockManager blockManager,
             int fileBufferSize,
             ShuffleWriteMetrics writeMetrics,
             TaskMetrics taskMetrics) {
-        super(externalSorter, sortedIterator, writeMetrics, taskMetrics);
+        super(externalSorter, sortedIterator, numberOfRecordsToWritten, writeMetrics, taskMetrics);
         this.blockManager = blockManager;
         this.serializerManager = serializerManager;
         this.fileBufferSize = fileBufferSize;
@@ -98,17 +99,23 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     }
 
     private void writeToDisk() throws IOException{
+        int numOfRecLeft = numberOfRecordsToWritten - numRecordsOnPMem;
         if (diskSpillWriter == null) {
             diskSpillWriter = new UnsafeSorterSpillWriter(
                     blockManager,
                     fileBufferSize,
                     sortedIterator,
-                   sortedIterator.getNumRecords() - numRecordsOnPMem,
+                    numOfRecLeft,
                     serializerManager,
                     writeMetrics,
                     taskMetrics);
         }
         diskSpillWriter.write(true);
+        sorted_logger.info("Num of rec {}; Num of rec written to PMem {}; still {} records left; num of rec written to disk {}.",
+                sortedIterator.getNumRecords(),
+                numRecordsOnPMem,
+                numOfRecLeft,
+                diskSpillWriter.recordsSpilled());
     }
     
     private boolean needNewPMemPage(int nextRecLen) {
@@ -194,7 +201,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         public SortedPMemPageSpillReader() throws IOException{
             if (diskSpillWriter != null) {
                 diskSpillReader = diskSpillWriter.getSpillReader();
-                numRecordsOnDisk = diskSpillReader.getNumRecords();
+                numRecordsOnDisk = diskSpillWriter.recordsSpilled();
             }
         }
         @Override
@@ -226,7 +233,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
         }
 
         private void loadNextOnDisk() throws IOException {
-            if (diskSpillReader != null) {
+            if (diskSpillReader != null && diskSpillReader.hasNext()) {
                 diskSpillReader.loadNext();
                 baseObject = diskSpillReader.getBaseObject();
                 baseOffset = diskSpillReader.getBaseOffset();
