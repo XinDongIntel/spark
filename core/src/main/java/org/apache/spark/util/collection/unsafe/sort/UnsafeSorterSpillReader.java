@@ -31,12 +31,14 @@ import org.apache.spark.storage.BlockId;
 import org.apache.spark.unsafe.Platform;
 
 import java.io.*;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /**
  * Reads spill files written by {@link UnsafeSorterSpillWriter} (see that class for a description
  * of the file format).
  */
 public final class UnsafeSorterSpillReader extends UnsafeSorterIterator implements Closeable {
+  private static final Logger logger = LoggerFactory.getLogger(UnsafeSorterSpillReader.class);
   public static final int MAX_BUFFER_SIZE_BYTES = 16777216; // 16 mb
 
   private InputStream in;
@@ -83,6 +85,8 @@ public final class UnsafeSorterSpillReader extends UnsafeSorterIterator implemen
       this.din = new DataInputStream(this.in);
       long startTime = System.nanoTime();
       numRecords = numRecordsRemaining = din.readInt();
+      logger.info("Create spill reader to read spill file {}:{}, file size {}. Record number {}",
+              file.getPath(),file.getName(),file.length(), numRecords);
       long duration = System.nanoTime() - startTime;
       this.taskMetrics.incShuffleSpillReadTime(duration);
     } catch (IOException e) {
@@ -112,7 +116,13 @@ public final class UnsafeSorterSpillReader extends UnsafeSorterIterator implemen
       taskContext.killTaskIfInterrupted();
     }
     long startTime = System.nanoTime();
-    recordLength = din.readInt();
+    try {
+      recordLength = din.readInt();
+    } catch( Exception ex) {
+      logger.info("Number of records in file {}, record remaining unread:{}.", numRecords, numRecordsRemaining);
+      logger.error("Error occur when get record from spill file.", ex);
+      throw ex;
+    }
     keyPrefix = din.readLong();
     if (recordLength > arr.length) {
       arr = new byte[recordLength];
