@@ -85,8 +85,8 @@ public final class UnsafeSorterSpillReader extends UnsafeSorterIterator implemen
       this.din = new DataInputStream(this.in);
       long startTime = System.nanoTime();
       numRecords = numRecordsRemaining = din.readInt();
-      logger.info("Create spill reader to read spill file {}:{}, file size {}. Record number {}",
-              file.getPath(),file.getName(),file.length(), numRecords);
+      logger.info("Create spill reader to read spill file {}, file size {}. Record number {}",
+              file.getPath(), file.length(), numRecords);
       long duration = System.nanoTime() - startTime;
       this.taskMetrics.incShuffleSpillReadTime(duration);
     } catch (IOException e) {

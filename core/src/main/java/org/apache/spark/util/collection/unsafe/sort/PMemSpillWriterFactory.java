@@ -30,6 +30,7 @@ public class PMemSpillWriterFactory {
             PMemSpillWriterType writerType,
             UnsafeExternalSorter externalSorter,
             UnsafeSorterIterator sortedIterator,
+            int numberOfRecordsToWritten,
             SerializerManager serializerManager,
             BlockManager blockManager,
             int fileBufferSize,
@@ -44,6 +45,7 @@ public class PMemSpillWriterFactory {
                 return new SortedPMemPageSpillWriter(
                         externalSorter,
                         sortedSpillIte,
+                        numberOfRecordsToWritten,
                         serializerManager,
                         blockManager,
                         fileBufferSize,
@@ -61,7 +63,7 @@ public class PMemSpillWriterFactory {
                     blockManager,
                     fileBufferSize,
                     sortedIterator,
-                    sortedIterator.getNumRecords(),
+                    numberOfRecordsToWritten,
                     serializerManager,
                     writeMetrics,
                     taskMetrics);
