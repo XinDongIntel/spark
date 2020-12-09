@@ -55,6 +55,7 @@ public class PMemSpillWriterFactory {
                 new PMemWriter(
                         externalSorter,
                         sortedSpillIte,
+                        numberOfRecordsToWritten,
                         writeMetrics,
                         taskMetrics);
             }
