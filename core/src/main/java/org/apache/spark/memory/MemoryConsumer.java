@@ -129,10 +129,6 @@ public abstract class MemoryConsumer {
     taskMemoryManager.freePage(page, this);
   }
 
-  protected void freePMemPage(MemoryBlock page) {
-    taskMemoryManager.freePMemPage(page, this);
-  }
-
   /**
    * Allocates memory of `size`.
    */
