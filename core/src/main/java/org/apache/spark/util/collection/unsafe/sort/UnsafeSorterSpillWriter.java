@@ -83,6 +83,7 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
     this.numRecordsToWrite = numRecordsToWrite;
     this.serializerManager = serializerManager;
     this.taskMetrics = taskMetrics;
+    this.inMemIterator = inMemIterator;
     // Unfortunately, we need a serializer instance in order to construct a DiskBlockObjectWriter.
     // Our write path doesn't actually use this serializer (since we end up calling the `write()`
     // OutputStream methods), but DiskBlockObjectWriter still calls some methods on it. To work

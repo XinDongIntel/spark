@@ -48,7 +48,9 @@ public abstract class UnsafeSorterPMemSpillWriter implements SpillWriterForUnsaf
 
     protected MemoryBlock allocatePMemPage(long size) {
         MemoryBlock page = taskMemoryManager.allocatePage(size, externalSorter, true);
-        allocatedPMemPages.add(page);
+        if (page != null) {
+            allocatedPMemPages.add(page);
+        }
         return page;
     }
 
