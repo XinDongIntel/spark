@@ -29,17 +29,14 @@ public class UnsafeExternalSorterSpillWriterSuite extends UnsafeExternalSorterSu
         for (int i = 0; i < 100; i++) {
             insertNumber(sorter, i);
         }
-        try {
-            ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
-            UnsafeInMemorySorter inMemSorter = sorter.getInMemSorter();
-            UnsafeSorterIterator sortedIte = inMemSorter.getSortedIterator();
-            if (sortedIte instanceof UnsafeInMemorySorter.SortedIterator) {
-                SpillWriterForUnsafeSorter pmemWriter = sorter.spillWithWriter(sortedIte, sortedIte.getNumRecords(),null);
-                UnsafeSorterIterator pmemReader = pmemWriter.getSpillReader();
-                verifyIntIterator(pmemReader, 0, 100);
-            }
-        } catch(Exception ex) {
-            ex.printStackTrace();
+
+        ShuffleWriteMetrics writeMetrics = new ShuffleWriteMetrics();
+        UnsafeInMemorySorter inMemSorter = sorter.getInMemSorter();
+        UnsafeSorterIterator sortedIte = inMemSorter.getSortedIterator();
+        if (sortedIte instanceof UnsafeInMemorySorter.SortedIterator) {
+            SpillWriterForUnsafeSorter pMemWriter = sorter.spillWithWriter(sortedIte, sortedIte.getNumRecords(),writeMetrics);
+            UnsafeSorterIterator pMemReader = pMemWriter.getSpillReader();
+            verifyIntIterator(pMemReader, 0, 100);
         }
     }
 }

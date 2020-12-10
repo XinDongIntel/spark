@@ -100,14 +100,13 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
           int fileBufferSize,
           ShuffleWriteMetrics writeMetrics,
           int numRecordsToWrite) throws IOException {
-    new UnsafeSorterSpillWriter(
-            blockManager,
-            fileBufferSize,
-           null,
-            numRecordsToWrite,
-           null,
-            writeMetrics,
-           null);
+    this(blockManager,
+         fileBufferSize,
+        null,
+         numRecordsToWrite,
+        null,
+         writeMetrics,
+        null);
   }
 
   public UnsafeSorterSpillWriter(
@@ -117,14 +116,13 @@ public final class UnsafeSorterSpillWriter implements SpillWriterForUnsafeSorter
           SerializerManager serializerManager,
           ShuffleWriteMetrics writeMetrics,
           TaskMetrics taskMetrics)  throws IOException {
-    new UnsafeSorterSpillWriter(
-            blockManager,
-            fileBufferSize,
-            inMemIterator,
-            inMemIterator.getNumRecords(),
-            serializerManager,
-            writeMetrics,
-            taskMetrics);
+    this(blockManager,
+         fileBufferSize,
+         inMemIterator,
+         inMemIterator.getNumRecords(),
+         serializerManager,
+         writeMetrics,
+         taskMetrics);
   }
 
   // Based on DataOutputStream.writeLong.

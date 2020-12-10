@@ -63,7 +63,7 @@ public class SortedPMemPageSpillWriter extends UnsafeSorterPMemSpillWriter {
     public void write() throws IOException {
         boolean allBeWritten = writeToPMem();
         if (!allBeWritten) {
-            sorted_logger.info("No more PMEM space available. Write left spills to disk");
+            sorted_logger.debug("No more PMEM space available. Write left spills to disk.");
             writeToDisk();
         }
     }
