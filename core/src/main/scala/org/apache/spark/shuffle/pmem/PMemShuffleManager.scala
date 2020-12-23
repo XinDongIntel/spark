@@ -19,7 +19,7 @@ package org.apache.spark.shuffle.pmem
 
 import java.util.concurrent.ConcurrentHashMap
 
-import org.apache.spark.{ShuffleDependency, SparkConf, TaskContext}
+import org.apache.spark.{ShuffleDependency, SparkConf, SparkEnv, TaskContext}
 import org.apache.spark.internal.Logging
 import org.apache.spark.shuffle._
 import org.apache.spark.util.collection.OpenHashSet
@@ -43,9 +43,17 @@ private[spark] class PMemShuffleManager(conf: SparkConf) extends ShuffleManager 
     val mapTaskIds = taskIdMapsForShuffle.computeIfAbsent(
       handle.shuffleId, _ => new OpenHashSet[Long](16))
     mapTaskIds.synchronized { mapTaskIds.add(context.taskAttemptId()) }
+
+    val serializerManager = SparkEnv.get.serializerManager
+
     handle match {
       case pmemShuffleHandle: PMemShuffleHandle[K @unchecked, V @unchecked, _] =>
-        new PMemShuffleWriter(pmemShuffleHandle, mapId, context)
+        new PMemShuffleWriter(
+          shuffleBlockResolver,
+          pmemShuffleHandle,
+          mapId,
+          context,
+          serializerManager)
     }
   }
 

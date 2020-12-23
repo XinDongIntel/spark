@@ -18,24 +18,42 @@
 package org.apache.spark.shuffle.pmem
 
 import org.apache.arrow.plasma.PlasmaClient
-
 import org.apache.spark.TaskContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.MapStatus
+import org.apache.spark.serializer.SerializerManager
 import org.apache.spark.shuffle.ShuffleWriter
+import org.apache.spark.storage.ShuffleBlockId
 
 private[spark] class PMemShuffleWriter[K, V, C](
+    shuffleBlockResolver: PMemShuffleBlockResolver,
     handle: PMemShuffleHandle[K, V, C],
     mapId: Long,
-    context: TaskContext)
+    context: TaskContext,
+    serializerManager: SerializerManager)
   extends ShuffleWriter[K, V] with Logging  {
 
   private val dep = handle.dependency
-  private val plasmaClient = new PlasmaClient("", "", 10)
+  private val partitioner = dep.partitioner
+  private val numPartitions = partitioner.numPartitions
+  private val shuffleId = dep.shuffleId
 
   /** Write a sequence of records to this task's output */
   override def write(records: Iterator[Product2[K, V]]): Unit = {
-//    plasmaClient.create()
+    val PMemChunkOutputStreamArray = (0 until numPartitions).toArray.map(partitionId =>
+      new PMemChunkOutputStream(
+        ShuffleBlockId(shuffleId, mapId, partitionId),
+        serializerManager,
+        dep.serializer.newInstance(),
+      )
+    )
+
+    while (records.hasNext) {
+      val record = records.next()
+      val key = record._1
+      val value = record._2
+      PMemChunkOutputStreamArray(partitioner.getPartition(key)).write(key, value)
+    }
   }
 
   /** Close this writer, passing along whether the map completed */
