@@ -38,16 +38,15 @@ public class PlasmaInputStream extends InputStream {
    * Make sure the given buffer size for input stream is equal to the output stream's
    *
    * @param parentObjectId  parent object id
-   * @param storeSocketName plasma object store socket
    * @param bufferSize buffer size
    */
-  public PlasmaInputStream(String parentObjectId, String storeSocketName, int bufferSize) {
+  public PlasmaInputStream(String parentObjectId, int bufferSize) {
     this.bufferSize = bufferSize;
     this.buffer = ByteBuffer.allocate(bufferSize);
     buffer.flip();
 
     this.parentObjectId = parentObjectId;
-    this.client = new MyPlasmaClient(storeSocketName);
+    this.client = MyPlasmaClientHolder.get();
     this.currChildObjectNumber = 0;
   }
 
@@ -55,10 +54,9 @@ public class PlasmaInputStream extends InputStream {
    * Use {@code DEFAULT_BUFFER_SIZE} as buffer size.
    *
    * @param parentObjectId
-   * @param storeSocketName
    */
-  public PlasmaInputStream(String parentObjectId, String storeSocketName) {
-    this(parentObjectId, storeSocketName, DEFAULT_BUFFER_SIZE);
+  public PlasmaInputStream(String parentObjectId) {
+    this(parentObjectId, DEFAULT_BUFFER_SIZE);
   }
 
   private boolean refill() {
@@ -125,16 +123,6 @@ public class PlasmaInputStream extends InputStream {
       remaining -= nr;
     }
     return n - remaining;
-  }
-
-  @Override
-  public void close() {
-    client.finalize();
-  }
-
-  @Override
-  protected void finalize() {
-    close();
   }
 
 }

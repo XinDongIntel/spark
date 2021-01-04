@@ -39,16 +39,15 @@ public class PlasmaOutputStream extends OutputStream {
    * Initialize with a customize buffer size.
    *
    * @param parentObjectId  parent object id
-   * @param storeSocketName plasma object store socket
    * @param bufferSize      buffer size
    */
-  public PlasmaOutputStream(String parentObjectId, String storeSocketName, int bufferSize) {
+  public PlasmaOutputStream(String parentObjectId, int bufferSize) {
     if (bufferSize < 0) {
       throw new IllegalArgumentException("buffer size can not be a negative number");
     }
     this.buffer = ByteBuffer.allocate(bufferSize);
     this.parentObjectId = parentObjectId;
-    this.client = new MyPlasmaClient(storeSocketName);
+    this.client = MyPlasmaClientHolder.get();
     this.currChildObjectNumber = 0;
   }
 
@@ -56,10 +55,9 @@ public class PlasmaOutputStream extends OutputStream {
    * Use {@code DEFAULT_BUFFER_SIZE} as buffer size.
    *
    * @param parentObjectId
-   * @param storeSocketName
    */
-  public PlasmaOutputStream(String parentObjectId, String storeSocketName) {
-    this(parentObjectId, storeSocketName, DEFAULT_BUFFER_SIZE);
+  public PlasmaOutputStream(String parentObjectId) {
+    this(parentObjectId, DEFAULT_BUFFER_SIZE);
   }
 
   @Override
@@ -114,8 +112,4 @@ public class PlasmaOutputStream extends OutputStream {
     return lastObjBytes;
   }
 
-  @Override
-  public void close() {
-    client.finalize();
-  }
 }

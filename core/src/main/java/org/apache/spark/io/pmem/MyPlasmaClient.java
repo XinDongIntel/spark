@@ -16,6 +16,8 @@ package org.apache.spark.io.pmem;
 
 import org.apache.arrow.plasma.PlasmaClient;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.spark.SparkEnv;
+import org.apache.spark.internal.config.package$;
 
 /**
  * Upstream Plasma Client Wrapper.
@@ -62,4 +64,28 @@ class ChildObjectId {
   public byte[] toBytes() {
     return objectId.getBytes();
   }
+}
+
+/**
+ * Hold a global plasma client instance.
+ */
+class MyPlasmaClientHolder {
+
+  private static MyPlasmaClient client;
+  private static String DEFAULT_STORE_SERVER_SOCKET = "/tmp/plasma";
+
+  public static MyPlasmaClient get() {
+    if (client == null) {
+      String storeSocketName = SparkEnv.get() == null ? DEFAULT_STORE_SERVER_SOCKET :
+          SparkEnv.get().conf().get(package$.MODULE$.PLASMA_SERVER_SOCKET());
+      client = new MyPlasmaClient(storeSocketName);
+    }
+    return client;
+  }
+
+  public static void close() {
+    client.finalize();
+    client = null;
+  }
+
 }

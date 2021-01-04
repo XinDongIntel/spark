@@ -1,5 +1,7 @@
 package org.apache.spark.io.pmem;
 
+import org.apache.spark.SparkConf;
+import org.apache.spark.SparkEnv;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,7 +13,6 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -19,6 +20,8 @@ import java.util.stream.Stream;
 
 import static org.junit.Assume.*;
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests functionality of {@link PlasmaInputStream} and {@link PlasmaOutputStream}
@@ -51,12 +54,12 @@ public class PlasmaOutputInputStreamSuite {
     } catch (InterruptedException ex2) {
       ex2.printStackTrace();
     }
+    mockSparkEnv();
   }
 
   @Test(expected = NullPointerException.class)
   public void testWithNullData() throws IOException {
-    PlasmaOutputStream pos = new PlasmaOutputStream(
-        "testWithEmptyData-dummy-id", plasmaStoreSocket);
+    PlasmaOutputStream pos = new PlasmaOutputStream("testWithEmptyData-dummy-id");
     pos.write(null);
   }
 
@@ -64,18 +67,16 @@ public class PlasmaOutputInputStreamSuite {
   public void testSingleWriteRead() {
     String blockId = "block_id_" + random.nextInt(10000000);
     byte[] bytesWrite = prepareByteBlockToWrite(1);
-    PlasmaOutputStream pos = new PlasmaOutputStream(blockId, plasmaStoreSocket);
+    PlasmaOutputStream pos = new PlasmaOutputStream(blockId);
     for (byte b : bytesWrite) {
       pos.write(b);
     }
-    pos.close();
 
     byte[] bytesRead = new byte[bytesWrite.length];
-    PlasmaInputStream pis = new PlasmaInputStream(blockId, plasmaStoreSocket);
+    PlasmaInputStream pis = new PlasmaInputStream(blockId);
     for (int i = 0; i < bytesRead.length; i++) {
       bytesRead[i] = (byte) pis.read();
     }
-    pis.close();
 
     assertArrayEquals(bytesWrite, bytesRead);
   }
@@ -84,14 +85,12 @@ public class PlasmaOutputInputStreamSuite {
   public void testBufferWriteRead() throws IOException {
     String blockId = "block_id_" + random.nextInt(10000000);
     byte[] bytesWrite = prepareByteBlockToWrite(1);
-    PlasmaOutputStream pos = new PlasmaOutputStream(blockId, plasmaStoreSocket);
+    PlasmaOutputStream pos = new PlasmaOutputStream(blockId);
     pos.write(bytesWrite);
-    pos.close();
 
     byte[] bytesRead = new byte[bytesWrite.length];
-    PlasmaInputStream pis = new PlasmaInputStream(blockId, plasmaStoreSocket);
+    PlasmaInputStream pis = new PlasmaInputStream(blockId);
     pis.read(bytesRead);
-    pis.close();
     assertArrayEquals(bytesWrite, bytesRead);
   }
 
@@ -99,18 +98,16 @@ public class PlasmaOutputInputStreamSuite {
   public void testPartialBlockWriteRead() throws IOException {
     String blockId = "block_id_" + random.nextInt(10000000);
     byte[] bytesWrite = prepareByteBlockToWrite(2.7);
-    PlasmaOutputStream pos = new PlasmaOutputStream(blockId, plasmaStoreSocket);
+    PlasmaOutputStream pos = new PlasmaOutputStream(blockId);
     pos.write(bytesWrite);
-    pos.close();
 
     ByteBuffer bytesRead = ByteBuffer.allocate(bytesWrite.length);
-    PlasmaInputStream pis = new PlasmaInputStream(blockId, plasmaStoreSocket);
+    PlasmaInputStream pis = new PlasmaInputStream(blockId);
     byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
     int len;
     while ((len = pis.read(buffer)) != -1) {
       bytesRead.put(buffer, 0, len);
     }
-    pis.close();
 
     assertArrayEquals(bytesWrite, bytesRead.array());
   }
@@ -119,17 +116,15 @@ public class PlasmaOutputInputStreamSuite {
   public void testMultiBlocksWriteRead() throws IOException {
     String blockId = "block_id_" + random.nextInt(10000000);
     byte[] bytesWrite = prepareByteBlockToWrite(2);
-    PlasmaOutputStream pos = new PlasmaOutputStream(blockId, plasmaStoreSocket);
+    PlasmaOutputStream pos = new PlasmaOutputStream(blockId);
     pos.write(bytesWrite);
-    pos.close();
 
     ByteBuffer bytesRead = ByteBuffer.allocate(bytesWrite.length);
-    PlasmaInputStream pis = new PlasmaInputStream(blockId, plasmaStoreSocket);
+    PlasmaInputStream pis = new PlasmaInputStream(blockId);
     byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
     while (pis.read(buffer) != -1) {
       bytesRead.put(buffer);
     }
-    pis.close();
 
     assertArrayEquals(bytesWrite, bytesRead.array());
   }
@@ -137,6 +132,7 @@ public class PlasmaOutputInputStreamSuite {
   @After
   public void tearDown() {
     try {
+      MyPlasmaClientHolder.close();
       stopPlasmaStore();
       deletePlasmaSocketFile();
     } catch (InterruptedException ex) {
@@ -209,5 +205,13 @@ public class PlasmaOutputInputStreamSuite {
     byte[] bytesToWrite = new byte[(int) (DEFAULT_BUFFER_SIZE * numOfBlock)];
     random.nextBytes(bytesToWrite);
     return bytesToWrite;
+  }
+
+  private void mockSparkEnv() {
+    SparkConf conf = new SparkConf();
+    conf.set("spark.io.plasma.server.socket", plasmaStoreSocket);
+    SparkEnv mockEnv = mock(SparkEnv.class);
+    SparkEnv.set(mockEnv);
+    when(mockEnv.conf()).thenReturn(conf);
   }
 }
