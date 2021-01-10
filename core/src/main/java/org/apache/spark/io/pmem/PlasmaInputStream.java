@@ -62,8 +62,7 @@ public class PlasmaInputStream extends InputStream {
   private boolean refill() {
     if (!buffer.hasRemaining()) {
       buffer.clear();
-      ChildObjectId childObjectId = new ChildObjectId(parentObjectId, currChildObjectNumber++);
-      ByteBuffer bufFromPlasma = client.getObjAsByteBuffer(childObjectId.toBytes(), 0, false);
+      ByteBuffer bufFromPlasma = client.getChildObject(parentObjectId, currChildObjectNumber++);
       if (bufFromPlasma == null) {
         return false;
       }
@@ -74,11 +73,8 @@ public class PlasmaInputStream extends InputStream {
   }
 
   @Override
-  public synchronized int read() {
-    if (!refill()) {
-      return -1;
-    }
-    return buffer.get() & 0xFF;
+  public int read() {
+    throw new UnsupportedOperationException("The method is not implemented");
   }
 
   @Override

@@ -19,6 +19,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.internal.config.package$;
 
+import java.nio.ByteBuffer;
+
 /**
  * Upstream Plasma Client Wrapper.
  * To simplify the parameter passed to plasma client.
@@ -34,9 +36,37 @@ public class MyPlasmaClient extends PlasmaClient {
   /**
    * Write to plasma store with an child object id
    */
-  public void write(String parentObjectId, int index, byte[] buffer) {
+  public void writeChildObject(String parentObjectId, int index, byte[] buffer) {
     ChildObjectId objectId = new ChildObjectId(parentObjectId, index);
     put(objectId.toBytes(), buffer, null);
+  }
+
+  public ByteBuffer getChildObject(String parentObjectId, int index) {
+    ChildObjectId childObjectId = new ChildObjectId(parentObjectId, index);
+    ByteBuffer buffer = getObjAsByteBuffer(childObjectId.toBytes(), 0, false);
+    return buffer;
+  }
+
+  /**
+   * record the total child number
+   */
+  public void recordChildObjectNumber(String parentObjectId, int num) {
+    put(paddingParentObjectId(parentObjectId).getBytes(),
+        ByteBuffer.allocate(4).putInt(num).array(), null);
+  }
+
+  public int getChildObjectNumber(String parentObjectId) {
+    ByteBuffer buffer = getObjAsByteBuffer(paddingParentObjectId(parentObjectId).getBytes(),
+        0, false);
+    if (buffer == null) {
+      return -1;
+    }
+    return buffer.getInt();
+  }
+
+  String paddingParentObjectId(String parentObjectId) {
+    // Padding with - to prevent duplicate from child object id.
+    return StringUtils.rightPad(parentObjectId, 20, "-");
   }
 
   @Override
@@ -84,8 +114,9 @@ class MyPlasmaClientHolder {
   }
 
   public static void close() {
-    client.finalize();
-    client = null;
+    if (client != null) {
+      client.finalize();
+      client = null;
+    }
   }
-
 }

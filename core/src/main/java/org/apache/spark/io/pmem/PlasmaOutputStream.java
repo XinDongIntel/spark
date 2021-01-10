@@ -62,11 +62,7 @@ public class PlasmaOutputStream extends OutputStream {
 
   @Override
   public void write(int b) {
-    buffer.put((byte) b);
-    if (!buffer.hasRemaining()) {
-      writeToPlasma();
-      buffer.clear();
-    }
+    throw new UnsupportedOperationException("The method is not implemented");
   }
 
   @Override
@@ -95,13 +91,14 @@ public class PlasmaOutputStream extends OutputStream {
       buffer.clear();
       currChildObjectNumber++;
     }
+    client.recordChildObjectNumber(parentObjectId, currChildObjectNumber);
   }
 
   private void writeToPlasma() {
     if (buffer.hasRemaining()) {
-      client.write(parentObjectId, currChildObjectNumber, shrinkLastObjBuffer());
+      client.writeChildObject(parentObjectId, currChildObjectNumber, shrinkLastObjBuffer());
     } else {
-      client.write(parentObjectId, currChildObjectNumber, buffer.array());
+      client.writeChildObject(parentObjectId, currChildObjectNumber, buffer.array());
     }
   }
 
