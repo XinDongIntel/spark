@@ -76,6 +76,7 @@ public class PlasmaOutputStream extends OutputStream {
       return;
     }
     int bytesToWrite = len;
+    int lastObjectLen = 0;
     while (bytesToWrite > 0) {
       int remainBytesInBuf = buffer.remaining();
       if (remainBytesInBuf <= bytesToWrite) {
@@ -85,13 +86,14 @@ public class PlasmaOutputStream extends OutputStream {
       } else {
         buffer.put(b, off, bytesToWrite);
         off += bytesToWrite;
+        lastObjectLen = bytesToWrite;
         bytesToWrite = 0;
       }
       writeToPlasma();
       buffer.clear();
       currChildObjectNumber++;
     }
-    client.recordChildObjectNumber(parentObjectId, currChildObjectNumber);
+    writeMetaData(currChildObjectNumber, lastObjectLen);
   }
 
   private void writeToPlasma() {
@@ -100,6 +102,11 @@ public class PlasmaOutputStream extends OutputStream {
     } else {
       client.writeChildObject(parentObjectId, currChildObjectNumber, buffer.array());
     }
+  }
+
+  private void writeMetaData(int num, int len) {
+    client.recordChildObjectMetaData(parentObjectId, num, len);
+
   }
 
   private byte[] shrinkLastObjBuffer() {

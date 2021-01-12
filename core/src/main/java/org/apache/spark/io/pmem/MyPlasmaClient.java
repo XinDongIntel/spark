@@ -47,12 +47,9 @@ public class MyPlasmaClient extends PlasmaClient {
     return buffer;
   }
 
-  /**
-   * record the total child number
-   */
-  public void recordChildObjectNumber(String parentObjectId, int num) {
+  public void recordChildObjectMetaData(String parentObjectId, int num, int len) {
     put(paddingParentObjectId(parentObjectId).getBytes(),
-        ByteBuffer.allocate(4).putInt(num).array(), null);
+        new ChildObjectMetaData(num, len).getBytes(), null);
   }
 
   public int getChildObjectNumber(String parentObjectId) {
@@ -61,7 +58,20 @@ public class MyPlasmaClient extends PlasmaClient {
     if (buffer == null) {
       return -1;
     }
-    return buffer.getInt();
+    ChildObjectMetaData metaData = new ChildObjectMetaData(buffer);
+    release(paddingParentObjectId(parentObjectId).getBytes());
+    return metaData.getChildObjectNum();
+  }
+
+  public int getLastChildObjectLen(String parentObjectId) {
+    ByteBuffer buffer = getObjAsByteBuffer(paddingParentObjectId(parentObjectId).getBytes(),
+        0, false);
+    if (buffer == null) {
+      return -1;
+    }
+    ChildObjectMetaData metaData = new ChildObjectMetaData(buffer);
+    release(paddingParentObjectId(parentObjectId).getBytes());
+    return metaData.getChildObjectLen();
   }
 
   String paddingParentObjectId(String parentObjectId) {
@@ -94,6 +104,38 @@ class ChildObjectId {
   public byte[] toBytes() {
     return objectId.getBytes();
   }
+}
+
+/**
+ * Use 8 bytes to record child object metadata.
+ * The first 4 bytes will record the total number of child objects.
+ * The last 4 bytes will record the length of last child object.
+ */
+class ChildObjectMetaData {
+  ByteBuffer buf;
+
+  public ChildObjectMetaData(int num, int len) {
+    buf = ByteBuffer.allocate(8);
+    buf.putInt(num);
+    buf.putInt(len);
+  }
+
+  public ChildObjectMetaData(ByteBuffer buf) {
+    this.buf = buf;
+  }
+
+  public int getChildObjectNum() {
+    return buf.getInt(0);
+  }
+
+  public int getChildObjectLen() {
+    return buf.getInt(4);
+  }
+
+  public byte[] getBytes() {
+    return buf.array();
+  }
+
 }
 
 /**

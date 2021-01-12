@@ -165,6 +165,20 @@ public class PlasmaOutputInputStreamSuite {
     threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.MINUTES);
   }
 
+  @Test
+  public void testGetObjAsByteBuffer() throws IOException {
+    String blockId = "block_id_" + random.nextInt(10000000);
+    byte[] bytesWrite = prepareByteBlockToWrite(2.7);
+    PlasmaOutputStream pos = new PlasmaOutputStream(blockId);
+    pos.write(bytesWrite);
+
+    ByteBuffer bytesRead = PlasmaUtils.getObjAsByteBuffer(blockId);
+    assertArrayEquals(bytesWrite, bytesRead.array());
+
+    PlasmaUtils.remove(blockId);
+    assertFalse(PlasmaUtils.contains(blockId));
+  }
+
   @AfterClass
   public static void tearDown() {
     try {

@@ -14,12 +14,15 @@
 
 package org.apache.spark.io.pmem;
 
+import java.nio.ByteBuffer;
+
 /**
  * Utility to operate object stored in plasma server
  */
 public class PlasmaUtils {
 
   private static MyPlasmaClient client = MyPlasmaClientHolder.get();
+  private static final int DEFAULT_BUFFER_SIZE = 4096;
 
   public static boolean contains(String objectId) {
     int num = client.getChildObjectNumber(objectId);
@@ -33,7 +36,23 @@ public class PlasmaUtils {
       client.release(childObjectId.toBytes());
       client.delete(childObjectId.toBytes());
     }
-    client.release(client.paddingParentObjectId(objectId).getBytes());
     client.delete(client.paddingParentObjectId(objectId).getBytes());
+  }
+
+  public static ByteBuffer getObjAsByteBuffer(String objectId) {
+    int num = client.getChildObjectNumber(objectId);
+    int len = client.getLastChildObjectLen(objectId);
+    int totalBufferSize;
+    if (len > 0) {
+      totalBufferSize = ((num - 1) * DEFAULT_BUFFER_SIZE) + len;
+    } else {
+      totalBufferSize = num * DEFAULT_BUFFER_SIZE;
+    }
+    ByteBuffer buffer = ByteBuffer.allocate(totalBufferSize);
+    for (int i = 0; i < num; i++) {
+      ByteBuffer buf = client.getChildObject(objectId, i);
+      buffer.put(buf);
+    }
+    return buffer;
   }
 }
