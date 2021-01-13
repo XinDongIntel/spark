@@ -19,16 +19,36 @@ package org.apache.spark.shuffle.pmem
 
 import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
+import org.apache.spark.io.pmem.PlasmaInputStream
 import org.apache.spark.network.buffer.ManagedBuffer
 import org.apache.spark.shuffle.ShuffleBlockResolver
 import org.apache.spark.storage.BlockId
+import org.apache.spark.network.netty.SparkTransportConf
 
 private[spark] class PMemShuffleBlockResolver(conf: SparkConf) extends ShuffleBlockResolver
   with Logging {
 
-  override def getBlockData(blockId: BlockId, dirs: Option[Array[String]]): ManagedBuffer = {
-    new PMemBlockManagedBuffer(blockId)
+  private lazy val blockManager = Option(_blockManager).getOrElse(SparkEnv.get.blockManager)
 
+  private val transportConf = SparkTransportConf.fromSparkConf(conf, "shuffle")
+
+  override def getBlockData(blockId: BlockId, dirs: Option[Array[String]]): ManagedBuffer = {
+    val (shuffleId, mapId, startReduceId, endReduceId) = blockId match {
+      case id: ShuffleBlockId =>
+        (id.shuffleId, id.mapId, id.reduceId, id.reduceId + 1)
+      case batchId: ShuffleBlockBatchId =>
+        (batchId.shuffleId, batchId.mapId, batchId.startReduceId, batchId.endReduceId)
+      case _ =>
+        throw new IllegalArgumentException("unexpected shuffle block id format: " + blockId)
+    }
+    val resultBuffer = new PlasmaInputSteamManagedBuffer(transportConf)
+    val idx = 0;
+    for (idx <- startReduceId to endReduceId){
+      val name = shuffleId +"_"+ mapId +"_" + idx
+      val in = new PlasmaInputStream(name)
+      resultBuffer.addStream(in)
+    }
+    resultBuffer
   }
 
   override def stop(): Unit = {
@@ -36,7 +56,7 @@ private[spark] class PMemShuffleBlockResolver(conf: SparkConf) extends ShuffleBl
   }
 
   def removeDataByMap(shuffleId: Int, mapId: Long): Unit = {
-
+    //ToDo: remove all the shuffle data
   }
 
 }
