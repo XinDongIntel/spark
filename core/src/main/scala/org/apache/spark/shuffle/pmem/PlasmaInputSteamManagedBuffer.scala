@@ -18,17 +18,20 @@
 package org.apache.spark.shuffle.pmem
 
 import java.io.InputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.{Channels, ReadableByteChannel, WritableByteChannel}
 import java.util.{ArrayList, Collections, Enumeration, List}
 import java.io.SequenceInputStream
 import java.nio.ByteBuffer
 import org.apache.spark.network.buffer.ManagedBuffer
+import org.apache.spark.network.util.AbstractFileRegion
 import org.apache.spark.storage.BlockId
 import org.apache.spark.io.pmem.PlasmaInputStream
+import org.apache.spark.network.netty.SparkTransportConf
 
-private[spark] class PlasmaInputSteamManagedBuffer(blockId: BlockId) extends ManagedBuffer {
-  private val conf: Nothing = null
+
+private[spark] class PlasmaInputSteamManagedBuffer(transportConf: SparkTransportConf) extends ManagedBuffer {
   private val streams: List[PlasmaInputStream] = new ArrayList[PlasmaInputStream]
   private val curStreamIdx: Int = 0
   private var totalLength: Long = 0L
@@ -39,11 +42,11 @@ private[spark] class PlasmaInputSteamManagedBuffer(blockId: BlockId) extends Man
 
   override def nioByteBuffer(): ByteBuffer = {
     //TODO: wait PlasmaInputStream to add getByteBuffer() which returns a DirectByteBuffer
-
+    null
   }
 
   override def createInputStream(): InputStream = {
-    val enmStreams: Enumeration[InputStream] = Collections.enumeration(streams)
+    val enmStreams: Enumeration[PlasmaInputStream] = Collections.enumeration(streams)
     val resultStream: SequenceInputStream = new SequenceInputStream(enmStreams)
     return resultStream
   }

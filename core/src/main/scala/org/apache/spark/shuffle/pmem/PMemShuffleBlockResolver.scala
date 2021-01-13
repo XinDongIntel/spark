@@ -17,15 +17,19 @@
 
 package org.apache.spark.shuffle.pmem
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkConf, SparkEnv}
 import org.apache.spark.internal.Logging
 import org.apache.spark.io.pmem.PlasmaInputStream
 import org.apache.spark.network.buffer.ManagedBuffer
 import org.apache.spark.shuffle.ShuffleBlockResolver
-import org.apache.spark.storage.BlockId
+import org.apache.spark.storage._
 import org.apache.spark.network.netty.SparkTransportConf
 
-private[spark] class PMemShuffleBlockResolver(conf: SparkConf) extends ShuffleBlockResolver
+
+private[spark] class PMemShuffleBlockResolver(
+  conf: SparkConf,
+  _blockManager: BlockManager = null)
+  extends ShuffleBlockResolver
   with Logging {
 
   private lazy val blockManager = Option(_blockManager).getOrElse(SparkEnv.get.blockManager)
