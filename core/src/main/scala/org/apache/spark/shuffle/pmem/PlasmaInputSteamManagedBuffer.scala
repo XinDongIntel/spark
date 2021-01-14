@@ -26,12 +26,12 @@ import java.io.SequenceInputStream
 import java.nio.ByteBuffer
 import org.apache.spark.network.buffer.ManagedBuffer
 import org.apache.spark.network.util.AbstractFileRegion
+import org.apache.spark.network.util.TransportConf
 import org.apache.spark.storage.BlockId
 import org.apache.spark.io.pmem.PlasmaInputStream
-import org.apache.spark.network.netty.SparkTransportConf
 
 
-private[spark] class PlasmaInputSteamManagedBuffer(transportConf: SparkTransportConf) extends ManagedBuffer {
+private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf) extends ManagedBuffer {
   private val streams: List[PlasmaInputStream] = new ArrayList[PlasmaInputStream]
   private val curStreamIdx: Int = 0
   private var totalLength: Long = 0L
