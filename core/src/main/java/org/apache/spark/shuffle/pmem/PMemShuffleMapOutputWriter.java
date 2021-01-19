@@ -23,6 +23,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
 import org.apache.spark.shuffle.api.WritableByteChannelWrapper;
+import org.apache.spark.shuffle.api.metadata.MapOutputCommitMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,9 +64,9 @@ public class PMemShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
 
     @Override
-    public long[] commitAllPartitions() throws IOException {
+    public MapOutputCommitMessage commitAllPartitions() throws IOException {
         //Do nothing here, since we don't need write index file here.
-        return partitionLengths;
+        return null;
     }
 
     @Override

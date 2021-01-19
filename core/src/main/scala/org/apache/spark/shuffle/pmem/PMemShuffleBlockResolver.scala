@@ -50,8 +50,8 @@ private[spark] class PMemShuffleBlockResolver(
     val resultBuffer = new PlasmaInputSteamManagedBuffer(transportConf)
     val idx = 0;
     for (idx <- startReduceId to endReduceId) {
-      val shuffleId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, idx)
-      val in = new PlasmaInputStream(shuffleId)
+      val shuffleObjId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, idx)
+      val in = new PlasmaInputStream(shuffleObjId)
       resultBuffer.addStream(in)
     }
     resultBuffer
@@ -66,7 +66,7 @@ private[spark] class PMemShuffleBlockResolver(
   }
 
   def getDataOutputStream(shuffleId: Int, mapId: Long, partitionId: Int): OutputStream = {
-    val shuffleId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, partitionId)
-    new PlasmaOutputStream(shuffleId)
+    val shuffleObjId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, partitionId)
+    new PlasmaOutputStream(shuffleObjId)
   }
 }
