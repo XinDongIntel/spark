@@ -19,19 +19,18 @@ package org.apache.spark.shuffle.pmem
 
 import java.io.InputStream
 import java.io.IOException
+import java.io.SequenceInputStream
 import java.nio.ByteBuffer
 import java.nio.channels.{Channels, ReadableByteChannel, WritableByteChannel}
 import java.util.{ArrayList, Collections, Enumeration, List}
-import java.io.SequenceInputStream
-import java.nio.ByteBuffer
+
+import org.apache.spark.io.pmem.PlasmaInputStream
 import org.apache.spark.network.buffer.ManagedBuffer
 import org.apache.spark.network.util.AbstractFileRegion
 import org.apache.spark.network.util.TransportConf
-import org.apache.spark.storage.BlockId
-import org.apache.spark.io.pmem.PlasmaInputStream
 
-
-private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf) extends ManagedBuffer {
+private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf)
+  extends ManagedBuffer {
   private val streams: List[PlasmaInputStream] = new ArrayList[PlasmaInputStream]
   private val curStreamIdx: Int = 0
   private var totalLength: Long = 0L
@@ -41,7 +40,8 @@ private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf)
   }
 
   override def nioByteBuffer(): ByteBuffer = {
-    //TODO: wait PlasmaInputStream to add getByteBuffer() which returns a DirectByteBuffer
+    // TODO:wait PlasmaInputStream to add getByteBuffer()
+    // which returns a DirectByteBuffer
     null
   }
 

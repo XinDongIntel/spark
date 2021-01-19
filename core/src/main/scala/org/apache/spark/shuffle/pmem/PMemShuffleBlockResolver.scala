@@ -17,14 +17,16 @@
 
 package org.apache.spark.shuffle.pmem
 
+import java.io.OutputStream
+
 import org.apache.spark.{SparkConf, SparkEnv}
 import org.apache.spark.internal.Logging
 import org.apache.spark.io.pmem.PlasmaInputStream
+import org.apache.spark.io.pmem.PlasmaOutputStream
 import org.apache.spark.network.buffer.ManagedBuffer
+import org.apache.spark.network.netty.SparkTransportConf
 import org.apache.spark.shuffle.ShuffleBlockResolver
 import org.apache.spark.storage._
-import org.apache.spark.network.netty.SparkTransportConf
-
 
 private[spark] class PMemShuffleBlockResolver(
   conf: SparkConf,
@@ -47,9 +49,9 @@ private[spark] class PMemShuffleBlockResolver(
     }
     val resultBuffer = new PlasmaInputSteamManagedBuffer(transportConf)
     val idx = 0;
-    for (idx <- startReduceId to endReduceId){
-      val name = shuffleId +"_"+ mapId +"_" + idx
-      val in = new PlasmaInputStream(name)
+    for (idx <- startReduceId to endReduceId) {
+      val shuffleObjId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, idx)
+      val in = new PlasmaInputStream(shuffleObjId)
       resultBuffer.addStream(in)
     }
     resultBuffer
@@ -63,4 +65,8 @@ private[spark] class PMemShuffleBlockResolver(
     //ToDo: remove all the shuffle data
   }
 
+  def getDataOutputStream(shuffleId: Int, mapId: Long, partitionId: Int): OutputStream = {
+    val shuffleObjId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, partitionId)
+    new PlasmaOutputStream(shuffleObjId)
+  }
 }
