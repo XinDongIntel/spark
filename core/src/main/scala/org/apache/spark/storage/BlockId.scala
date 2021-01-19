@@ -82,6 +82,27 @@ case class ShuffleIndexBlockId(shuffleId: Int, mapId: Long, reduceId: Int) exten
 }
 
 @DeveloperApi
+case class PlasmaShuffleBlockId(shuffleId: Int, mapId: Long, reduceId: Int) extends BlockId {
+  override def name: String = "p_" + shuffleId + "_" + mapId + "_" + reduceId
+}
+
+@DeveloperApi
+case class PlasmaShuffleBlockBatchId(
+  shuffleId: Int,
+  mapId: Long,
+  startReduceId: Int,
+  endReduceId: Int) extends BlockId {
+  override def name: String = {
+    "p_" + shuffleId + "_" + mapId + "_" + startReduceId + "_" + endReduceId
+  }
+}
+
+@DeveloperApi
+case class PlasmaShuffleDataBlockId(shuffleId: Int, mapId: Long, reduceId: Int) extends BlockId {
+  override def name: String = "p_" + shuffleId + "_" + mapId + "_" + reduceId
+}
+
+@DeveloperApi
 case class BroadcastBlockId(broadcastId: Long, field: String = "") extends BlockId {
   override def name: String = "broadcast_" + broadcastId + (if (field == "") "" else "_" + field)
 }

@@ -25,8 +25,6 @@ import java.nio.ByteBuffer;
  */
 public class PlasmaOutputStream extends OutputStream {
 
-  private static final int DEFAULT_BUFFER_SIZE = 4096;
-
   private final String parentObjectId;
   private final MyPlasmaClient client;
 
@@ -57,7 +55,7 @@ public class PlasmaOutputStream extends OutputStream {
    * @param parentObjectId
    */
   public PlasmaOutputStream(String parentObjectId) {
-    this(parentObjectId, DEFAULT_BUFFER_SIZE);
+    this(parentObjectId, PlasmaUtils.DEFAULT_BUFFER_SIZE);
   }
 
   @Override

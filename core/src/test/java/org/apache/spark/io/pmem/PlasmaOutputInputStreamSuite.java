@@ -17,39 +17,29 @@
 package org.apache.spark.io.pmem;
 
 import org.apache.spark.SparkConf;
-import org.apache.spark.SparkEnv;
+import org.apache.spark.serializer.JavaSerializer;
+import org.apache.spark.serializer.SerializerManager;
+import org.apache.spark.shuffle.pmem.PlasmaBlockObjectWriter;
+import org.apache.spark.storage.BlockId;
+import org.apache.spark.storage.PlasmaShuffleBlockId;
+import org.glassfish.jersey.message.internal.Utils;
 import org.junit.*;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.junit.Assume.*;
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
 
 /**
  * Tests functionality of {@link PlasmaInputStream} and {@link PlasmaOutputStream}
  */
-public class PlasmaOutputInputStreamSuite {
+public class PlasmaOutputInputStreamSuite extends PlasmaTestSuite {
 
-  private final static int DEFAULT_BUFFER_SIZE = 4096;
-
-  private final static String plasmaStoreServer = "plasma-store-server";
-  private final static String plasmaStoreSocket = "/tmp/PlasmaOutputInputStreamSuite_socket_file";
-  private final static long memoryInBytes = 1000000000;
-
-  private static Process process;
   private final Random random = new Random();
 
   @BeforeClass
@@ -179,6 +169,14 @@ public class PlasmaOutputInputStreamSuite {
     assertFalse(PlasmaUtils.contains(blockId));
   }
 
+  @Ignore
+  public void testPlasmaObjectWriter() throws IOException {
+    BlockId blockId = new PlasmaShuffleBlockId(0, 0, 0);
+    PlasmaBlockObjectWriter writer = createWriter(blockId);
+    writer.write("key1", "value1");
+    // TODO: incomplete due to no append feature in plasma output stream
+  }
+
   @AfterClass
   public static void tearDown() {
     try {
@@ -190,78 +188,9 @@ public class PlasmaOutputInputStreamSuite {
     }
   }
 
-  public static boolean isPlasmaJavaAvailable() {
-    boolean available = true;
-    try {
-      System.loadLibrary("plasma_java");
-    } catch (UnsatisfiedLinkError ex) {
-      available = false;
-    }
-    return available;
-  }
-
-  private static boolean isPlasmaStoreExist() {
-    return Stream.of(System.getenv("PATH").split(Pattern.quote(File.pathSeparator)))
-        .map(Paths::get)
-        .anyMatch(path -> Files.exists(path.resolve(plasmaStoreServer)));
-  }
-
-  private static Process startProcess(String command) throws IOException {
-    List<String> cmdList = Arrays.stream(command.split(" ")).collect(Collectors.toList());
-    ProcessBuilder processBuilder = new ProcessBuilder(cmdList).inheritIO();
-    Process process = processBuilder.start();
-    return process;
-  }
-
-  private static boolean startPlasmaStore() throws IOException, InterruptedException {
-    String command = plasmaStoreServer + " -s " + plasmaStoreSocket + " -m " + memoryInBytes;
-    process = startProcess(command);
-    int ticktock = 60;
-    if (process != null) {
-      while(!process.isAlive()) {
-        TimeUnit.MILLISECONDS.sleep(1000);
-        ticktock--;
-        if (ticktock == 0 && !process.isAlive()) {
-          throw new RuntimeException("Failed to start plasma store server");
-        }
-      }
-      return true;
-    }
-    return false;
-  }
-
-  private static void stopPlasmaStore() throws InterruptedException {
-    if (process != null && process.isAlive()) {
-      process.destroyForcibly();
-      int ticktock = 60;
-      while (process.isAlive()) {
-        TimeUnit.MILLISECONDS.sleep(1000);
-        ticktock--;
-        if (ticktock == 0 && process.isAlive()) {
-          throw new RuntimeException("Failed to stop plasma store server");
-        }
-      }
-    }
-  }
-
-  private static void deletePlasmaSocketFile() {
-    File socketFile = new File(plasmaStoreSocket);
-    if (socketFile != null && socketFile.exists()) {
-      socketFile.delete();
-    }
-  }
-
   private byte[] prepareByteBlockToWrite(double numOfBlock) {
     byte[] bytesToWrite = new byte[(int) (DEFAULT_BUFFER_SIZE * numOfBlock)];
     random.nextBytes(bytesToWrite);
     return bytesToWrite;
-  }
-
-  private static void mockSparkEnv() {
-    SparkConf conf = new SparkConf();
-    conf.set("spark.io.plasma.server.socket", plasmaStoreSocket);
-    SparkEnv mockEnv = mock(SparkEnv.class);
-    SparkEnv.set(mockEnv);
-    when(mockEnv.conf()).thenReturn(conf);
   }
 }

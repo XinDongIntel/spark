@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 public class PlasmaUtils {
 
   private static MyPlasmaClient client = MyPlasmaClientHolder.get();
-  private static final int DEFAULT_BUFFER_SIZE = 4096;
+  public static final int DEFAULT_BUFFER_SIZE = 4096;
 
   public static boolean contains(String objectId) {
     int num = client.getChildObjectNumber(objectId);

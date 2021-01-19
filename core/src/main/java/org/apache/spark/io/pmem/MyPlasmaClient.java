@@ -146,6 +146,12 @@ class MyPlasmaClientHolder {
   private static MyPlasmaClient client;
   private static String DEFAULT_STORE_SERVER_SOCKET = "/tmp/plasma";
 
+  static {
+    System.loadLibrary("plasma_java");
+  }
+
+  private MyPlasmaClientHolder() {}
+
   public static MyPlasmaClient get() {
     if (client == null) {
       String storeSocketName = SparkEnv.get() == null ? DEFAULT_STORE_SERVER_SOCKET :

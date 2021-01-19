@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
  */
 public class PlasmaInputStream extends InputStream {
 
-  private static final int DEFAULT_BUFFER_SIZE = 4096;
-
   private final String parentObjectId;
   private final MyPlasmaClient client;
 
@@ -56,7 +54,7 @@ public class PlasmaInputStream extends InputStream {
    * @param parentObjectId
    */
   public PlasmaInputStream(String parentObjectId) {
-    this(parentObjectId, DEFAULT_BUFFER_SIZE);
+    this(parentObjectId, PlasmaUtils.DEFAULT_BUFFER_SIZE);
   }
 
   private boolean refill() {
