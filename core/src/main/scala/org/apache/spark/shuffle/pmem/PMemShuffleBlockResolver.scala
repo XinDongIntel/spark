@@ -65,8 +65,8 @@ private[spark] class PMemShuffleBlockResolver(
     //ToDo: remove all the shuffle data
   }
 
-  def getDataOutputStream(shuffleId: Int, mapId: Long, partitionId: Long): OutputStream = {
-    val shuffleId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, idx)
+  def getDataOutputStream(shuffleId: Int, mapId: Long, partitionId: Int): OutputStream = {
+    val shuffleId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, partitionId)
     new PlasmaOutputStream(shuffleId)
   }
 }
