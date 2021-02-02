@@ -17,25 +17,36 @@
 
 package org.apache.spark.shuffle.pmem;
 
-import org.apache.spark.SparkConf;
-import org.apache.spark.shuffle.api.ShuffleDataIO;
 import org.apache.spark.shuffle.api.ShuffleDriverComponents;
-import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
+import org.apache.spark.SparkEnv;
+import org.apache.spark.shuffle.api.ShuffleDriverComponents;
+import org.apache.spark.storage.BlockManagerMaster;
 
-public class PMemShuffleDataIO implements ShuffleDataIO {
-    private final SparkConf sparkConf;
+import java.util.Map;
+import java.util.Collections;
+import java.util.Map;
 
-    public PMemShuffleDataIO(SparkConf sparkConf) {
-        this.sparkConf = sparkConf;
+
+public class PlasmaShuffleDriverComponets implements ShuffleDriverComponents {
+    private BlockManagerMaster blockManagerMaster;
+
+    @Override
+    public Map<String, String> initializeApplication() {
+        blockManagerMaster = SparkEnv.get().blockManager().master();
+        return Collections.emptyMap();
     }
 
     @Override
-    public ShuffleExecutorComponents executor() {
-        return new PMemShuffleExecutorComponents(sparkConf);
+    public void cleanupApplication() {
+        // nothing to clean up
     }
 
     @Override
-    public ShuffleDriverComponents driver() {
-        return new PMemShuffleDriverComponets();
+    public void removeShuffle(int shuffleId, boolean blocking) {
+        if (blockManagerMaster == null) {
+            throw new IllegalStateException("Driver components must be initialized before using");
+        }
+        blockManagerMaster.removeShuffle(shuffleId, blocking);
+        //Todo: remove shuffle blocks in pMem.
     }
 }

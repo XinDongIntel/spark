@@ -28,9 +28,9 @@ import org.apache.spark.network.netty.SparkTransportConf
 import org.apache.spark.shuffle.ShuffleBlockResolver
 import org.apache.spark.storage._
 
-private[spark] class PMemShuffleBlockResolver(
+private[spark] class PlasmaShuffleBlockResolver(
   conf: SparkConf,
-  _blockManager: BlockManager = null)
+  var _blockManager: BlockManager = null)
   extends ShuffleBlockResolver
   with Logging {
 
@@ -47,8 +47,7 @@ private[spark] class PMemShuffleBlockResolver(
       case _ =>
         throw new IllegalArgumentException("unexpected shuffle block id format: " + blockId)
     }
-    val resultBuffer = new PlasmaInputSteamManagedBuffer(transportConf)
-    val idx = 0;
+    val resultBuffer = new PlasmaInputSteamManagedBuffer(transportConf);
     for (idx <- startReduceId to endReduceId) {
       val shuffleObjId = PlasmaShuffleUtil.generateShuffleId(shuffleId, mapId, idx)
       val in = new PlasmaInputStream(shuffleObjId)
@@ -61,8 +60,8 @@ private[spark] class PMemShuffleBlockResolver(
 
   }
 
-  def removeDataByMap(shuffleId: Int, mapId: Long): Unit = {
-    //ToDo: remove all the shuffle data
+  override def removeDataByMap(shuffleId: Int, mapId: Long): Unit = {
+    // ToDo: remove all the shuffle data
   }
 
   def getDataOutputStream(shuffleId: Int, mapId: Long, partitionId: Int): OutputStream = {

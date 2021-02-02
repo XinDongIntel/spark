@@ -28,19 +28,19 @@ import org.apache.spark.shuffle.api.SingleSpillShuffleMapOutputWriter;
 import java.util.Map;
 import java.util.Optional;
 
-public class PMemShuffleExecutorComponents implements ShuffleExecutorComponents {
+public class PlasmaShuffleExecutorComponents implements ShuffleExecutorComponents {
     private final SparkConf sparkConf;
     private BlockManager blockManager;
-    private PMemShuffleBlockResolver blockResolver;
-    public PMemShuffleExecutorComponents(SparkConf sparkConf) {
+    private PlasmaShuffleBlockResolver blockResolver;
+    public PlasmaShuffleExecutorComponents(SparkConf sparkConf) {
         this.sparkConf = sparkConf;
     }
 
     @VisibleForTesting
-    public PMemShuffleExecutorComponents(
+    public PlasmaShuffleExecutorComponents(
             SparkConf sparkConf,
             BlockManager blockManager,
-            PMemShuffleBlockResolver blockResolver
+            PlasmaShuffleBlockResolver blockResolver
             ) {
         this.sparkConf = sparkConf;
         this.blockManager = blockManager;
@@ -53,7 +53,7 @@ public class PMemShuffleExecutorComponents implements ShuffleExecutorComponents 
         if (blockManager == null) {
             throw new IllegalStateException("No blockManager available from the SparkEnv.");
         }
-        blockResolver = new PMemShuffleBlockResolver(sparkConf, blockManager);
+        blockResolver = new PlasmaShuffleBlockResolver(sparkConf, blockManager);
     }
 
     @Override
@@ -65,7 +65,7 @@ public class PMemShuffleExecutorComponents implements ShuffleExecutorComponents 
             throw new IllegalStateException(
                     "Executor components must be initialized before getting writers.");
         }
-        return new PMemShuffleMapOutputWriter(shuffleId, mapTaskId, numPartitions, blockResolver, sparkConf);
+        return new PlasmaShuffleMapOutputWriter(shuffleId, mapTaskId, numPartitions, blockResolver, sparkConf);
     }
 
     @Override

@@ -30,22 +30,22 @@ import org.slf4j.LoggerFactory;
 import java.nio.channels.WritableByteChannel;
 import java.util.Optional;
 
-public class PMemShuffleMapOutputWriter implements ShuffleMapOutputWriter {
+public class PlasmaShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     private static final Logger log =
-            LoggerFactory.getLogger(PMemShuffleMapOutputWriter.class);
+            LoggerFactory.getLogger(PlasmaShuffleMapOutputWriter.class);
 
     private final int shuffleId;
     private final long mapId;
-    private final PMemShuffleBlockResolver blockResolver;
+    private final PlasmaShuffleBlockResolver blockResolver;
     private final SparkConf conf;
     private final long[] partitionLengths;
     private int lastPartitionId = -1;
 
-    public PMemShuffleMapOutputWriter(
+    public PlasmaShuffleMapOutputWriter(
             int shuffleId,
             long mapId,
             int numPartitions,
-            PMemShuffleBlockResolver blockResolver,
+            PlasmaShuffleBlockResolver blockResolver,
             SparkConf sparkConf) {
         this.shuffleId = shuffleId;
         this.mapId = mapId;
@@ -60,7 +60,7 @@ public class PMemShuffleMapOutputWriter implements ShuffleMapOutputWriter {
             throw new IllegalArgumentException("Partitions should be requested in increasing order.");
         }
         lastPartitionId = reducePartitionId;
-        return new PMemShuffleMapOutputWriter.PMemShufflePartitionWriter(reducePartitionId);
+        return new PlasmaShuffleMapOutputWriter.PMemShufflePartitionWriter(reducePartitionId);
     }
 
     @Override
@@ -76,7 +76,7 @@ public class PMemShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
     private class PMemShufflePartitionWriter implements ShufflePartitionWriter {
         private final int partitionId;
-        private PMemShuffleMapOutputWriter.PartitionWriterStream partStream = null;
+        private PlasmaShuffleMapOutputWriter.PartitionWriterStream partStream = null;
 
         private PMemShufflePartitionWriter(int partitionId) {
             this.partitionId = partitionId;
@@ -110,7 +110,7 @@ public class PMemShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
 
    //TODo: will implement it in POAE7-771.
-    private class PMemShufflePartitionWritableChannel implements WritableByteChannelWrapper {
+    private class PlasmaShufflePartitionWritableChannel implements WritableByteChannelWrapper {
 
         @Override
         public WritableByteChannel channel() {
