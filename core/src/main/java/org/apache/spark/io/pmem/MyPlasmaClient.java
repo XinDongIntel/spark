@@ -47,11 +47,6 @@ public class MyPlasmaClient extends PlasmaClient {
     return buffer;
   }
 
-  public void recordChildObjectMetaData(String parentObjectId, int num, int len) {
-    put(paddingParentObjectId(parentObjectId).getBytes(),
-        new ChildObjectMetaData(num, len).getBytes(), null);
-  }
-
   public int getChildObjectNumber(String parentObjectId) {
     ByteBuffer buffer = getObjAsByteBuffer(paddingParentObjectId(parentObjectId).getBytes(),
         0, false);
@@ -61,17 +56,6 @@ public class MyPlasmaClient extends PlasmaClient {
     ChildObjectMetaData metaData = new ChildObjectMetaData(buffer);
     release(paddingParentObjectId(parentObjectId).getBytes());
     return metaData.getChildObjectNum();
-  }
-
-  public int getLastChildObjectLen(String parentObjectId) {
-    ByteBuffer buffer = getObjAsByteBuffer(paddingParentObjectId(parentObjectId).getBytes(),
-        0, false);
-    if (buffer == null) {
-      return -1;
-    }
-    ChildObjectMetaData metaData = new ChildObjectMetaData(buffer);
-    release(paddingParentObjectId(parentObjectId).getBytes());
-    return metaData.getChildObjectLen();
   }
 
   String paddingParentObjectId(String parentObjectId) {

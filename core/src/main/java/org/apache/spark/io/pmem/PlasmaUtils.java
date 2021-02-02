@@ -40,19 +40,7 @@ public class PlasmaUtils {
   }
 
   public static ByteBuffer getObjAsByteBuffer(String objectId) {
-    int num = client.getChildObjectNumber(objectId);
-    int len = client.getLastChildObjectLen(objectId);
-    int totalBufferSize;
-    if (len > 0) {
-      totalBufferSize = ((num - 1) * DEFAULT_BUFFER_SIZE) + len;
-    } else {
-      totalBufferSize = num * DEFAULT_BUFFER_SIZE;
-    }
-    ByteBuffer buffer = ByteBuffer.allocate(totalBufferSize);
-    for (int i = 0; i < num; i++) {
-      ByteBuffer buf = client.getChildObject(objectId, i);
-      buffer.put(buf);
-    }
-    return buffer;
+    // TODO: previous implementation will have some oom issue
+    return null;
   }
 }

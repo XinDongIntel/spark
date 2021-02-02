@@ -16,13 +16,9 @@
  */
 package org.apache.spark.io.pmem;
 
-import org.apache.spark.SparkConf;
-import org.apache.spark.serializer.JavaSerializer;
-import org.apache.spark.serializer.SerializerManager;
 import org.apache.spark.shuffle.pmem.PlasmaBlockObjectWriter;
 import org.apache.spark.storage.BlockId;
 import org.apache.spark.storage.PlasmaShuffleBlockId;
-import org.glassfish.jersey.message.internal.Utils;
 import org.junit.*;
 
 import java.io.*;
@@ -156,20 +152,6 @@ public class PlasmaOutputInputStreamSuite extends PlasmaTestSuite {
   }
 
   @Test
-  public void testGetObjAsByteBuffer() throws IOException {
-    String blockId = "block_id_" + random.nextInt(10000000);
-    byte[] bytesWrite = prepareByteBlockToWrite(2.7);
-    PlasmaOutputStream pos = new PlasmaOutputStream(blockId);
-    pos.write(bytesWrite);
-
-    ByteBuffer bytesRead = PlasmaUtils.getObjAsByteBuffer(blockId);
-    assertArrayEquals(bytesWrite, bytesRead.array());
-
-    PlasmaUtils.remove(blockId);
-    assertFalse(PlasmaUtils.contains(blockId));
-  }
-
-  @Ignore
   public void testPlasmaObjectWriter() throws IOException {
     BlockId blockId = new PlasmaShuffleBlockId(0, 0, 0);
     PlasmaBlockObjectWriter writer = createWriter(blockId);
