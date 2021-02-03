@@ -22,13 +22,14 @@ import java.io.IOException
 import java.io.SequenceInputStream
 import java.nio.ByteBuffer
 import java.nio.channels.{Channels, ReadableByteChannel, WritableByteChannel}
-import java.util
 import java.util.{ArrayList, Collections, Enumeration, List}
 
 import org.apache.spark.io.pmem.{PlasmaInputStream, PlasmaUtils}
 import org.apache.spark.network.buffer.ManagedBuffer
 import org.apache.spark.network.util.AbstractFileRegion
 import org.apache.spark.network.util.TransportConf
+
+import scala.collection.JavaConverters._
 
 private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf)
   extends ManagedBuffer {
@@ -46,13 +47,13 @@ private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf)
     // we need to concatenate all the ByteBuffers of all the PlasmaInputStream
     var length = 0;
     var bbs = new ArrayList[ByteBuffer]()
-    for ( streamId <- streamIds) {
+    for ( streamId <- streamIds.asScala) {
       val bb = PlasmaUtils.getObjAsByteBuffer(streamId)
       bbs.add(bb)
       length += bb.remaining()
     }
     val concatBb = ByteBuffer.allocate(length)
-    for ( binStream : ByteBuffer <- bbs) {
+    for ( binStream : ByteBuffer <- bbs.asScala) {
       concatBb.put(binStream)
     }
     concatBb
