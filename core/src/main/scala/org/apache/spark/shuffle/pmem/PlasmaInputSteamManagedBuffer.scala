@@ -29,8 +29,6 @@ import org.apache.spark.network.buffer.ManagedBuffer
 import org.apache.spark.network.util.AbstractFileRegion
 import org.apache.spark.network.util.TransportConf
 
-import scala.collection.JavaConverters._
-
 private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf)
   extends ManagedBuffer {
   private val streams: List[PlasmaInputStream] = new ArrayList[PlasmaInputStream]
@@ -45,6 +43,7 @@ private[spark] class PlasmaInputSteamManagedBuffer(transportConf: TransportConf)
   override def nioByteBuffer(): ByteBuffer = {
     // For current API in PlasmaUtils.getObjAsByteBuffer(),
     // we need to concatenate all the ByteBuffers of all the PlasmaInputStream
+    import scala.collection.JavaConverters._
     var length = 0;
     var bbs = new ArrayList[ByteBuffer]()
     for ( streamId <- streamIds.asScala) {
